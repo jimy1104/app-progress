@@ -475,6 +475,16 @@ tbody tr:hover { background: var(--rojo-tinte); box-shadow: inset 4px 0 0 var(--
 .action-list button:hover, .action-list button.active { border-color: var(--rojo); background: var(--rojo-tinte); color: var(--rojo); }
 .modal { border-radius: 16px; border-top: 5px solid var(--rojo); }
 .modal-scrim.open .modal { animation: est-entra 0.4s cubic-bezier(0.2, 0.9, 0.25, 1.05) backwards; }
+.kpi { background: var(--est-blanco); border: 0; border-radius: 14px; box-shadow: var(--est-sombra), 0 0 0 1px var(--est-linea); padding: 14px 12px; transition: transform 0.25s ease, box-shadow 0.25s ease; animation: est-sube 0.5s ease backwards; }
+.kpi:nth-child(2) { animation-delay: 0.06s; } .kpi:nth-child(3) { animation-delay: 0.12s; } .kpi:nth-child(4) { animation-delay: 0.18s; }
+.kpi:hover { transform: translateY(-3px); box-shadow: var(--est-sombra-alta), 0 0 0 1px var(--est-linea); }
+.kpi .num { font: 900 26px/1.1 "Nunito", sans-serif; color: var(--rojo); font-variant-numeric: tabular-nums; }
+.kpi .lbl { font-size: 12.5px; margin-top: 4px; }
+.kpi.rz-kpi-sin_observacion .num { color: var(--verde); }
+.kpi.rz-kpi-revisar .num { color: var(--amber); }
+.kpi.rz-kpi-criterio .num { color: var(--violet); }
+.kpi.rz-kpi-no_evaluable .num { color: var(--est-texto); }
+.est-en-detalle .est-tab.activa { background: transparent; color: var(--est-tinta); font-weight: 500; }
 .toast { background: var(--est-tinta); color: var(--est-blanco); border-left: 5px solid var(--rojo); border-radius: 12px; }
 
 /* ---------------------------------------------------------------------

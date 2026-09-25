@@ -449,8 +449,13 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
     document.body.appendChild(panel);
     document.body.appendChild(btn);
-    document.body.appendChild(burbuja);
-    setTimeout(function () { burbuja.remove(); }, 9000);
+    // La burbuja «¿Te ayudo?» sale una sola vez por sesión, para no tapar nada después.
+    var yaVista = false;
+    try { yaVista = !!sessionStorage.getItem('gl_ayuda_vista'); sessionStorage.setItem('gl_ayuda_vista', '1'); } catch (e) {}
+    if (!yaVista) {
+      document.body.appendChild(burbuja);
+      setTimeout(function () { burbuja.remove(); }, 9000);
+    }
   }
 
   /* ---------------- Aparición al bajar ---------------- */
