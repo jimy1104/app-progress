@@ -1,0 +1,12 @@
+Flask>=3.0
+gunicorn>=21.2
+azure-ai-documentintelligence>=1.0,<2
+azure-identity>=1.16
+azure-keyvault-secrets>=4.8
+azure-storage-blob>=12.20
+python-dotenv>=1.0
+pymupdf>=1.24
+numpy>=1.26
+openpyxl>=3.1
+pyyaml>=6.0
+pytesseract>=0.3.10
