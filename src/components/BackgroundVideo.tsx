@@ -108,6 +108,9 @@ export default function BackgroundVideo({ playing }: Props) {
       <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-black/70 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/80 to-transparent" />
 
+      {/* Extra dimming used by the high-contrast preference */}
+      <div className="contrast-veil absolute inset-0 bg-black/50 opacity-0 transition-opacity duration-500" />
+
       {/* Film grain */}
       <div className="grain absolute -inset-[10%] opacity-[0.07] mix-blend-overlay" />
     </div>

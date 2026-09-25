@@ -43,6 +43,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+:focus-visible {
+  outline: 2px solid rgb(var(--a1));
+  outline-offset: 3px;
+}
+input:focus-visible {
+  outline: none;
+}
 ::selection {
   background: rgb(var(--a1) / 0.35);
   color: #fff;
@@ -109,6 +116,19 @@ body {
   z-index: 1;
 }
 
+/* High-contrast mode: calmer backdrop, solid text, denser glass */
+:root[data-contrast='high'] .liquid-glass {
+  background: rgba(8, 9, 14, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+:root[data-contrast='high'] .contrast-veil {
+  opacity: 1;
+}
+:root[data-contrast='high'] [class*='text-white/'] {
+  color: #fff;
+}
+
 /* Denser glass for floating panels (menus, personalize sheet) */
 .glass-panel {
   background: linear-gradient(180deg, rgba(20, 22, 30, 0.72), rgba(10, 11, 16, 0.82));
@@ -135,6 +155,16 @@ body {
 }
 .accent-dot {
   background: conic-gradient(from 180deg, rgb(var(--a1)), rgb(var(--a2)), rgb(var(--a3)), rgb(var(--a1)));
+}
+
+/* Soft light that trails the cursor */
+.ambient-glow {
+  background: radial-gradient(
+    520px circle at var(--px, 50%) var(--py, 40%),
+    rgb(var(--a1) / 0.09),
+    rgb(var(--a2) / 0.04) 40%,
+    transparent 70%
+  );
 }
 
 /* Film grain for a cinematic finish */
@@ -203,6 +233,23 @@ body {
   animation-delay: var(--d, 0ms);
 }
 
+.letterbox-top {
+  animation: letterbox-top 1.3s cubic-bezier(0.7, 0, 0.2, 1) 0.25s forwards;
+}
+.letterbox-bottom {
+  animation: letterbox-bottom 1.3s cubic-bezier(0.7, 0, 0.2, 1) 0.25s forwards;
+}
+
+@keyframes letterbox-top {
+  to {
+    transform: translateY(-100%);
+  }
+}
+@keyframes letterbox-bottom {
+  to {
+    transform: translateY(100%);
+  }
+}
 @keyframes rise {
   from {
     opacity: 0;

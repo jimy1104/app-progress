@@ -26,7 +26,7 @@ export default function Navbar() {
   }, [menuOpen]);
 
   return (
-    <nav className="reveal relative z-20 py-6 pl-6 pr-6" style={{ ['--d' as string]: '0ms' }}>
+    <nav className="reveal relative z-20 py-6 pl-6 pr-6" style={{ ['--d' as string]: '650ms' }}>
       <div ref={menuRef} className="relative mx-auto max-w-5xl">
         <div className="liquid-glass mx-auto flex max-w-5xl items-center justify-between rounded-full px-6 py-3">
           <div className="flex items-center gap-8">

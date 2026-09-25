@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, Loader2, Mail, Sparkles } from 'lucide-react';
+import Magnetic from './Magnetic';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -135,6 +136,7 @@ export default function Hero() {
                 />
               </>
             )}
+            <Magnetic strength={0.3}>
             <button
               type="submit"
               aria-label="Subscribe"
@@ -151,6 +153,7 @@ export default function Hero() {
                 <ArrowRight size={20} className="transition-transform duration-300 group-hover:translate-x-0.5" />
               )}
             </button>
+            </Magnetic>
           </form>
 
           {/* celebratory burst on success */}
@@ -181,12 +184,13 @@ export default function Hero() {
           </p>
         </div>
 
-        <p className="reveal px-4 pt-3 text-sm leading-relaxed text-white/85" style={{ ['--d' as string]: '1050ms' }}>
+        <p className="reveal px-4 pt-3 text-sm leading-relaxed text-white" style={{ ['--d' as string]: '1050ms' }}>
           Stay updated with the latest news and insights. Subscribe to our newsletter today and never miss out on
           exciting updates.
         </p>
 
         <div className="reveal flex justify-center" style={{ ['--d' as string]: '1200ms' }}>
+          <Magnetic strength={0.15}>
           <button className="group liquid-glass inline-flex items-center gap-2 rounded-full px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-white/5">
             <Sparkles
               size={16}
@@ -194,6 +198,7 @@ export default function Hero() {
             />
             Manifesto
           </button>
+          </Magnetic>
         </div>
       </div>
     </section>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Film, Palette, RotateCcw, SlidersHorizontal, Type, Wand2, X } from 'lucide-react';
+import { Contrast, Film, Palette, RotateCcw, SlidersHorizontal, Type, Wand2, X } from 'lucide-react';
 import type { Preferences, Theme } from '../hooks/usePreferences';
 
 const THEMES: { id: Theme; name: string; colors: [string, string, string] }[] = [
@@ -54,6 +54,7 @@ export default function Personalize({ prefs, update, reset }: Props) {
   const [open, setOpen] = useState(false);
   const [hinted, setHinted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   // Draw attention to the button once, shortly after the intro.
   useEffect(() => {
@@ -63,7 +64,11 @@ export default function Personalize({ prefs, update, reset }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    };
     const onClick = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -81,7 +86,7 @@ export default function Personalize({ prefs, update, reset }: Props) {
         <div
           role="dialog"
           aria-label="Personalize"
-          className="glass-panel liquid-glass sheet-in w-[min(22rem,calc(100vw-2.5rem))] rounded-3xl p-4 shadow-2xl"
+          className="glass-panel liquid-glass sheet-in max-h-[calc(100dvh-6.5rem)] w-[min(22rem,calc(100vw-2.5rem))] overflow-y-auto rounded-3xl p-4 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -149,6 +154,10 @@ export default function Personalize({ prefs, update, reset }: Props) {
               <Switch label="Animations" checked={prefs.motion} onChange={(v) => update('motion', v)} />
             </Row>
 
+            <Row icon={Contrast} title="High contrast" hint="Clearer text over video">
+              <Switch label="High contrast" checked={prefs.contrast} onChange={(v) => update('contrast', v)} />
+            </Row>
+
             <Row icon={Film} title="Background video" hint="Play the scenery">
               <Switch label="Background video" checked={prefs.video} onChange={(v) => update('video', v)} />
             </Row>
@@ -157,6 +166,7 @@ export default function Personalize({ prefs, update, reset }: Props) {
       )}
 
       <button
+        ref={toggleRef}
         onClick={() => {
           setOpen((o) => !o);
           setHinted(false);

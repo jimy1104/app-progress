@@ -8,6 +8,7 @@ export interface Preferences {
   textSize: TextSize;
   motion: boolean;
   video: boolean;
+  contrast: boolean;
 }
 
 const STORAGE_KEY = 'asme:preferences';
@@ -20,6 +21,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   textSize: 'normal',
   motion: true,
   video: true,
+  contrast: false,
 };
 
 function load(): Preferences {
@@ -41,6 +43,7 @@ export function usePreferences() {
     root.dataset.theme = prefs.theme;
     root.dataset.text = prefs.textSize;
     root.dataset.motion = prefs.motion ? 'on' : 'off';
+    root.dataset.contrast = prefs.contrast ? 'high' : 'normal';
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
     } catch {
