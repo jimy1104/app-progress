@@ -6,10 +6,11 @@
 <title>Gestión de Logística</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marca.svg') }}">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
-<script src="{{ url_for('static', filename='ui.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='estado.css') }}">
+<script src="{{ url_for('static', filename='estado.js') }}"></script>
 <style>
   .rama-chip { display:inline-flex; align-items:center; gap:9px; padding:12px 18px; border-radius:12px;
     background:var(--teal-tint); color:var(--teal-deep); font-weight:700; font-size:15px; margin-bottom:22px; }
@@ -22,23 +23,35 @@
 </head>
 <body>
 <div class="app">
-  <header class="masthead">
-    <div class="masthead-left">
-      <div class="masthead-mark">GL</div>
-      <div style="min-width:0;">
-        <div class="masthead-eyebrow">Oficina de Logística · Dependencia Encargada de las Contrataciones</div>
-        <h1>Gestión de Logística</h1>
-        <div class="sub">Sube tu información — no necesitas nada más para tu trabajo diario</div>
+  <header class="masthead est-cabecera">
+    <div class="est-franja">
+      <div class="est-in">
+        <span class="est-entidad">
+          <img src="{{ url_for('static', filename='marca.svg') }}" alt="" aria-hidden="true">
+          {{ session.get('municipalidad_nombre') or 'Oficina de Logística' }}
+        </span>
+        <div class="est-franja-der">
+          <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
+          {% if current_user %}
+          <span class="est-usuario"><span class="est-avatar">{{ current_user.username[:1]|upper }}</span>{{ current_user.username }} · Logística</span>
+          <a class="est-salir" href="{{ url_for('logout') }}">Salir</a>
+          {% endif %}
+        </div>
       </div>
     </div>
-    <div class="masthead-right">
-      <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
-      {% if current_user %}
-      <span class="back-btn" style="cursor:default;">{{ current_user.username }} · Logística</span>
-      <a class="back-btn" href="{{ url_for('logout') }}" style="text-decoration:none;">Salir</a>
-      {% endif %}
+    <div class="est-nav">
+      <div class="est-in">
+        <span class="est-logo">
+          <img class="masthead-mark" src="{{ url_for('static', filename='marca.svg') }}" alt="">
+          <span class="est-logo-txt"><h1>Gestión de <em>Logística</em></h1></span>
+        </span>
+        <div class="est-emp-lema sub">Sube tu información — no necesitas nada más para tu trabajo diario</div>
+      </div>
     </div>
   </header>
+  <section class="est-emp-hero">
+    <div class="est-in"><div><span class="est-kicker">Tu trabajo</span><h2>Hola, {{ current_user.username if current_user else '' }} 👋</h2><p>Sube tu Excel o tus escaneos aquí. Gestión de Logística los ordena solo.</p></div></div>
+  </section>
 
   <main style="max-width: 760px;">
     <div class="section-label">Tu trabajo</div>
@@ -114,7 +127,14 @@
     </div>
   </main>
 
-  <footer class="app-footer">Gestión de Logística · Oficina de Logística</footer>
+  <footer class="est-pie">
+    <div class="est-pie-base">
+      <div class="est-in">
+        <span><strong>Gestión de Logística</strong> · Oficina de Logística — Dependencia Encargada de las Contrataciones{% if session.get('municipalidad_nombre') %} · {{ session.get('municipalidad_nombre') }}{% endif %}</span>
+        <span class="app-footer">Hecho para el trabajo diario del Estado</span>
+      </div>
+    </div>
+  </footer>
 </div>
 
 <div class="toast-stack" id="toastStack"></div>

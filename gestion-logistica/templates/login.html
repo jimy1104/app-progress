@@ -4,53 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ingresar — Gestión de Logística</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marca.svg') }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
-<script src="{{ url_for('static', filename='ui.js') }}"></script>
-<style>
-  .area-card { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:14px 16px; border-radius:12px; border:1.5px solid var(--border-soft); background:var(--card); cursor:pointer; transition:border-color .15s, background .15s, transform .1s; }
-  .area-card:hover:not([disabled]) { border-color:var(--accent); background:var(--teal-tint); transform:translateY(-1px); }
-  .area-card:active:not([disabled]) { transform:scale(.98); }
-  .area-card[disabled] { cursor:not-allowed; background:var(--card-alt); }
-  .area-card[disabled] .txt strong { color:var(--text-muted); }
-  .area-card .ico { font-size:19px; width:38px; height:38px; flex:none; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--teal-tint); }
-  .area-card[disabled] .ico { background:var(--border-soft); filter:grayscale(1); opacity:.7; }
-  .area-card .txt { display:flex; flex-direction:column; gap:2px; }
-  .area-card .txt strong { font-size:14px; color:var(--text); font-weight:700; }
-  .area-card .txt span { font-size:12px; color:var(--text-muted); font-weight:500; }
-  .area-card .soon-pill { margin-left:auto; flex:none; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-muted); background:var(--border-soft); padding:3px 9px; border-radius:999px; }
-  .step-back { background:none; border:none; color:var(--accent-deep); font-size:13px; font-weight:600; cursor:pointer; padding:0; margin-bottom:10px; text-align:left; }
-  .step-back:hover { color:var(--text); text-decoration:underline; }
-  .breadcrumb-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--teal-deep); background:var(--teal-tint); border-radius:999px; padding:5px 12px; margin-bottom:14px; }
-  .masthead-mark { cursor:pointer; user-select:none; }
-  .candado-admin { position:absolute; right:14px; bottom:12px; background:none; border:none; cursor:pointer;
-    font-size:14px; opacity:.25; padding:6px; line-height:1; transition:opacity .15s; }
-  .candado-admin:hover { opacity:.9; }
-  .aviso-admin { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
-  .login-step { display:none; }
-  .login-step.active { display:flex; flex-direction:column; gap:12px; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='estado.css') }}">
+<script src="{{ url_for('static', filename='estado.js') }}"></script>
 </head>
-<body class="gl-login">
-<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
-  <div class="login-card" style="max-width:400px;">
-    <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
-      <div class="masthead-mark">GL</div>
-      <div>
-        <div class="masthead-eyebrow" style="color:var(--text-muted);">Gestión de Logística</div>
-        <h1 style="font-size:22px; color:var(--text);">Ingresar</h1>
-      </div>
+<body class="ingreso">
+
+<!-- Formas animadas del fondo -->
+<div class="ing-fondo" aria-hidden="true">
+  <span class="ing-onda o1"></span>
+  <span class="ing-onda o2"></span>
+  <span class="ing-onda o3"></span>
+</div>
+
+<main class="ing-caja">
+  <!-- Lado izquierdo: la marca y para qué sirve -->
+  <section class="ing-izq" aria-hidden="true">
+    <span class="ing-curva c1"></span>
+    <span class="ing-curva c2"></span>
+    <div class="ing-circulo">
+      <svg class="ing-ruta" viewBox="0 0 120 90" fill="none">
+        <path class="ing-ruta-linea" d="M30 58 C 30 76, 58 70, 62 56 S 90 34, 92 22" stroke="#C8102E" stroke-width="2.2" stroke-dasharray="4 5" stroke-linecap="round"/>
+        <g class="ing-pin p1"><path d="M30 60c-7-9-10-13-10-18a10 10 0 0 1 20 0c0 5-3 9-10 18z" stroke="#C8102E" stroke-width="2.4" fill="#fff"/><circle cx="30" cy="42" r="3.6" stroke="#C8102E" stroke-width="2.2"/></g>
+        <g class="ing-pin p2"><path d="M92 26c-7-9-10-13-10-18a10 10 0 0 1 20 0c0 5-3 9-10 18z" stroke="#C8102E" stroke-width="2.4" fill="#fff"/><circle cx="92" cy="8" r="3.6" stroke="#C8102E" stroke-width="2.2"/></g>
+      </svg>
+      <p>Las contrataciones de tu municipalidad, ordenadas y a un clic: selección, contratos menores, locadores, almacén y obras.</p>
     </div>
+  </section>
+
+  <!-- Lado derecho: los pasos -->
+  <section class="ing-der">
+    <img class="ing-marca-agua" src="{{ url_for('static', filename='marca.svg') }}" alt="" aria-hidden="true">
+    <div class="ing-avatar">
+      <img class="masthead-mark" src="{{ url_for('static', filename='marca.svg') }}" alt="Gestión de Logística" title="Gestión de Logística">
+    </div>
+    <div class="ing-titulo">
+      <div class="ing-eyebrow">Gestión de Logística</div>
+      <h1>Ingresar</h1>
+    </div>
+
     {% if error %}
     <div class="err-note">⚠️ <span>{{ error }}</span></div>
     {% endif %}
 
+    <div id="muniChip" class="ing-muni-chip" hidden>
+      <span>🏛️ <strong id="muniChipNombre"></strong></span>
+      <button type="button" onclick="cambiarMunicipalidad()">Cambiar</button>
+    </div>
+
+    <!-- Paso 0: municipalidad -->
+    <div id="stepMuni" class="login-step{% if municipalidades %} active{% endif %}">
+      <div class="ing-pregunta">¿A qué municipalidad perteneces?</div>
+      <label class="ing-campo">
+        <input id="muniBuscar" type="search" placeholder="Escribe el nombre o la sigla…" autocomplete="off" aria-label="Buscar municipalidad" aria-controls="muniLista">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      </label>
+      <button type="button" id="muniRecordada" class="ing-recordada" hidden></button>
+      <div id="muniLista" class="ing-muni-lista" role="listbox" aria-label="Municipalidades">
+        {% for m in municipalidades %}
+        <button type="button" role="option" class="ing-muni" data-ruc="{{ m.ruc }}" data-nombre="{{ m.nombre }}" data-buscar="{{ (m.nombre ~ ' ' ~ m.sigla ~ ' ' ~ m.ruc)|lower }}">
+          <span>{{ m.nombre }}</span>{% if m.sigla %}<small>{{ m.sigla }}</small>{% endif %}
+        </button>
+        {% endfor %}
+        <p class="ing-vacio" id="muniVacio" hidden>No encontramos esa municipalidad. Revisa cómo la escribiste.</p>
+      </div>
+    </div>
+
     <!-- Paso 1: área -->
-    <div id="stepArea" class="login-step active">
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">¿A qué área perteneces?</div>
+    <div id="stepArea" class="login-step{% if not municipalidades %} active{% endif %}">
+      <div class="ing-pregunta">¿A qué área perteneces?</div>
       <button type="button" class="area-card" onclick="elegirArea('logistica', 'Logística')">
         <span class="ico">📦</span>
         <span class="txt"><strong>Logística</strong><span>Compras, obras, contrataciones</span></span>
@@ -70,70 +96,83 @@
     <!-- Paso 2: cargo (solo Logística por ahora) -->
     <div id="stepCargo" class="login-step">
       <button type="button" class="step-back" onclick="volverA('stepArea')">‹ Volver</button>
-      <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">¿Cuál es tu cargo en Logística?</div>
-      <button type="button" class="area-card" onclick="elegirCargo('Jefe de Logística')" style="--tab:var(--amber-tint);">
-        <span class="ico" style="background:var(--amber-tint);">🗝️</span>
+      <div class="ing-pregunta">¿Cuál es tu cargo en Logística?</div>
+      <button type="button" class="area-card" onclick="elegirCargo('Jefe de Logística')">
+        <span class="ico">🗝️</span>
         <span class="txt"><strong>Jefe de Logística</strong><span>Administra usuarios de su área</span></span>
       </button>
       <button type="button" class="area-card" onclick="elegirCargo('Encargado de Documentos')">
         <span class="ico">📄</span>
         <span class="txt"><strong>Encargado(a)</strong><span>Documentos, obras, contrataciones u otro</span></span>
       </button>
-      <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Esto solo ayuda a identificarte — no cambia lo que puedes ver o hacer en el sistema.</div>
+      <div class="ing-nota">Esto solo ayuda a identificarte — no cambia lo que puedes ver o hacer en el sistema.</div>
     </div>
 
     <!-- Paso 3: usuario y contraseña -->
     <div id="stepLogin" class="login-step">
       <button type="button" class="step-back" onclick="volverA('stepCargo', true)">‹ Volver</button>
       <div id="breadcrumbTag" class="breadcrumb-tag"></div>
-      <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+      <form method="POST" class="ing-form">
         <input type="hidden" name="cargo_declarado" id="cargoDeclarado" value="">
-        <div class="field">
-          <label for="username">Usuario</label>
-          <input id="username" name="username" type="text" autocomplete="username" required>
-        </div>
-        <div class="field">
-          <label for="password">Contraseña</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required>
-        </div>
-        <button class="btn btn-primary" type="submit" style="justify-content:center; margin-top:6px;">Ingresar</button>
+        <input type="hidden" name="municipalidad_ruc" class="muni-ruc" value="">
+        <label class="ing-campo">
+          <span class="sr-only">Usuario</span>
+          <input id="username" name="username" type="text" autocomplete="username" placeholder="Usuario" required>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+        </label>
+        <label class="ing-campo">
+          <span class="sr-only">Contraseña</span>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Contraseña" required>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        </label>
+        <button class="ing-boton" type="submit">Ingresar</button>
+        <p class="ing-ayuda">¿Olvidaste tu contraseña?<br><strong>Pídele al administrador que la cambie.</strong></p>
       </form>
     </div>
 
     <!-- Paso escondido: entrada de administrador. No se ve hasta que se hace
-         doble clic en el logo "EC" o se toca el candado de la esquina. -->
+         doble clic en el logo o se toca el candado de la esquina. -->
     <div id="stepAdmin" class="login-step">
       <button type="button" class="step-back" onclick="volverA('stepArea')">‹ Volver</button>
-      <div class="breadcrumb-tag" style="background:var(--amber-tint);color:#7a4f04;">🔐 Entrada de administrador</div>
-      <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+      <div class="breadcrumb-tag ing-admin-tag">🔐 Entrada de administrador</div>
+      <form method="POST" class="ing-form">
         <input type="hidden" name="modo" value="admin">
-        <div class="field">
-          <label for="adminUsuario">Usuario</label>
-          <input id="adminUsuario" name="username" type="text" autocomplete="username">
-        </div>
-        <div class="field">
-          <label for="adminPassword">Contraseña</label>
-          <input id="adminPassword" name="password" type="password" autocomplete="current-password">
-        </div>
-        <div class="field">
-          <label for="adminClave">Clave de administrador</label>
-          <input id="adminClave" name="clave_admin" type="password" autocomplete="off">
-          <div class="aviso-admin">{% if hay_clave_admin %}Es la segunda clave que configuraste dentro de Gestión de Logística.{% else %}Todavía no has configurado una: déjala en blanco.{% endif %}</div>
-        </div>
-        <button class="btn btn-primary" type="submit" style="justify-content:center; margin-top:6px;">Entrar como administrador</button>
+        <input type="hidden" name="municipalidad_ruc" class="muni-ruc" value="">
+        <label class="ing-campo">
+          <span class="sr-only">Usuario</span>
+          <input id="adminUsuario" name="username" type="text" autocomplete="username" placeholder="Usuario">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+        </label>
+        <label class="ing-campo">
+          <span class="sr-only">Contraseña</span>
+          <input id="adminPassword" name="password" type="password" autocomplete="current-password" placeholder="Contraseña">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        </label>
+        <label class="ing-campo">
+          <span class="sr-only">Clave de administrador</span>
+          <input id="adminClave" name="clave_admin" type="password" autocomplete="off" placeholder="Clave de administrador">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-3 3 3 3m-6 0 2 2"/></svg>
+        </label>
+        <div class="aviso-admin">{% if hay_clave_admin %}Es la segunda clave que configuraste dentro de Gestión de Logística.{% else %}Todavía no has configurado una: déjala en blanco.{% endif %}</div>
+        <button class="ing-boton" type="submit">Entrar como administrador</button>
       </form>
     </div>
 
+    <div class="ing-pie">Oficina de Logística · Dependencia Encargada de las Contrataciones</div>
     <button type="button" class="candado-admin" title="Entrada de administrador" onclick="abrirAdmin()">🔒</button>
-  </div>
-</div>
+  </section>
+</main>
+
 <script>
   var _area = '';
   var _cargo = '';
+  var MUNI_KEY = 'gl_municipalidad';
 
   function irA(id) {
     document.querySelectorAll('.login-step').forEach(function (el) { el.classList.remove('active'); });
     document.getElementById(id).classList.add('active');
+    var chip = document.getElementById('muniChip');
+    chip.hidden = !(id !== 'stepMuni' && chip.dataset.ruc);
   }
 
   function volverA(id, saltarCargoSiNoAplica) {
@@ -145,6 +184,66 @@
     }
     irA(id);
   }
+
+  /* ---- Paso 0: municipalidad ---- */
+  function fijarMunicipalidad(ruc, nombre) {
+    var chip = document.getElementById('muniChip');
+    chip.dataset.ruc = ruc;
+    document.getElementById('muniChipNombre').textContent = nombre;
+    document.querySelectorAll('.muni-ruc').forEach(function (i) { i.value = ruc; });
+    try { localStorage.setItem(MUNI_KEY, JSON.stringify({ ruc: ruc, nombre: nombre })); } catch (e) {}
+  }
+  function elegirMunicipalidad(ruc, nombre) {
+    fijarMunicipalidad(ruc, nombre);
+    irA('stepArea');
+  }
+  function cambiarMunicipalidad() {
+    irA('stepMuni');
+    var b = document.getElementById('muniBuscar');
+    if (b) { b.value = ''; filtrarMunicipalidades(''); b.focus(); }
+  }
+  window.cambiarMunicipalidad = cambiarMunicipalidad;
+
+  function filtrarMunicipalidades(q) {
+    q = (q || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    var visibles = 0;
+    document.querySelectorAll('.ing-muni').forEach(function (b) {
+      var t = b.dataset.buscar.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      var ok = !q || t.indexOf(q) !== -1;
+      b.hidden = !ok;
+      if (ok) visibles++;
+    });
+    var vacio = document.getElementById('muniVacio');
+    if (vacio) vacio.hidden = visibles > 0;
+  }
+
+  (function iniciarMunicipalidades() {
+    var lista = document.getElementById('muniLista');
+    if (!lista) return;
+    lista.addEventListener('click', function (e) {
+      var b = e.target.closest('.ing-muni');
+      if (b) elegirMunicipalidad(b.dataset.ruc, b.dataset.nombre);
+    });
+    var buscar = document.getElementById('muniBuscar');
+    buscar.addEventListener('input', function () { filtrarMunicipalidades(buscar.value); });
+    buscar.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var primera = document.querySelector('.ing-muni:not([hidden])');
+      if (primera) primera.click();
+    });
+    // La última elegida en esta computadora: un solo clic para seguir.
+    var guardada = null;
+    try { guardada = JSON.parse(localStorage.getItem(MUNI_KEY) || 'null'); } catch (e) {}
+    if (guardada && document.querySelector('.ing-muni[data-ruc="' + guardada.ruc + '"]')) {
+      fijarMunicipalidad(guardada.ruc, guardada.nombre);
+      var r = document.getElementById('muniRecordada');
+      r.hidden = false;
+      r.innerHTML = '<span>Continuar con</span><strong></strong><em>→</em>';
+      r.querySelector('strong').textContent = guardada.nombre;
+      r.onclick = function () { elegirMunicipalidad(guardada.ruc, guardada.nombre); };
+    }
+  })();
 
   function elegirArea(area, etiqueta) {
     _area = area;
@@ -177,7 +276,7 @@
   }
   window.abrirAdmin = abrirAdmin;
 
-  // Doble clic en el logo "EC" -> entrada de administrador (el atajo
+  // Doble clic en el logo -> entrada de administrador (el atajo
   // discreto, sin que aparezca nada escrito en la pantalla).
   var marca = document.querySelector('.masthead-mark');
   if (marca) marca.addEventListener('dblclick', abrirAdmin);

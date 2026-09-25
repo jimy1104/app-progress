@@ -1,43 +1,45 @@
-# Gestión de Logística — nuevo diseño «Cine»
+# Gestión de Logística — interfaz «Estado»
 
-Capa visual nueva para la app de la Oficina de Logística. **No cambia ninguna
-función**: mismos textos, mismos botones, mismos IDs y el mismo `app.js` /
-`empleado.js`. Solo cambia cómo se ve y agrega opciones para personalizarla.
+Rediseño de la app de la Oficina de Logística con la estructura de un portal
+del Estado y marca propia. **No cambia ninguna función existente**: mismos
+botones, textos, IDs y el mismo `app.js` / `empleado.js`.
 
-> Este repositorio es público: aquí solo están los archivos de la interfaz.
-> El backend, la semilla de datos y el directorio de funcionarios **no** se
+> Repositorio público: aquí solo va la interfaz y el parche del ingreso. El
+> resto del backend, la semilla de datos y el directorio de funcionarios no se
 > suben.
 
-## Qué cambió
+## Ingreso (landing animada)
+
+Tarjeta partida con curvas rojas animadas, círculo con la ruta de logística y
+el sello propio (`static/marca.svg`) como avatar y marca de agua. Pasos:
+
+1. **¿A qué municipalidad perteneces?** — buscador sobre la base de
+   municipalidades de la app; recuerda la última elegida («Continuar con …»).
+2. **¿A qué área perteneces?** — los mismos 3 botones de antes.
+3. **Cargo** — Jefe de Logística / Encargado(a), igual que antes.
+4. **Usuario y contraseña**.
+
+La entrada escondida de administrador (doble clic en el sello o el candado)
+sigue igual. La municipalidad es informativa, como el cargo: se guarda en la
+sesión, se muestra en la franja superior y queda en la bitácora; **no cambia
+permisos**.
+
+## Inicio (administradores y jefes)
+
+- Franja superior con la municipalidad, atajos y la cuenta.
+- Barra con menús **Subprocesos · Control · Administración** (Control suma los
+  avisos de Riesgos, Verificación posterior y Bandeja).
+- **Carrusel principal** con números y anillo de progreso: Resumen, ⚠ Riesgos,
+  Verificación posterior, Bandeja y Ejecutar información (según el rol).
+- **Resumen de un vistazo**: números que cuentan y gráfico de órdenes por año.
+- Subprocesos como tarjetas con íconos de línea y flechas, banners de
+  «Información ya cargada» y «Guía rápida», pie de página completo y ayuda
+  flotante.
+
+## Archivos
 
 | Archivo | Cambio |
 |---|---|
-| `static/nuevo.css` | **Nuevo.** Colores, letras, vidrio líquido y animaciones. Se carga después de `styles.css`; si se quita, la app vuelve a verse como antes. |
-| `static/ui.js` | **Nuevo.** Panel «Personalizar», video de fondo, títulos animados y luz que sigue al puntero. |
-| `templates/*.html` | Cargan las letras nuevas (Instrument Serif + Manrope), `nuevo.css` y `ui.js`. En `login.html` y `setup.html` la tarjeta pasa a usar la clase `login-card`. |
-
-## Cómo se ve
-
-- **Oscuro de cine por defecto**, con luz de aurora detrás de superficies de
-  vidrio líquido. El tema claro sigue disponible (🌓 Tema o «Personalizar»).
-- **Títulos** en Instrument Serif; la última palabra en cursiva con degradado
-  («Gestión de *Logística*»). Texto en Manrope; números en IBM Plex Mono.
-- **Ingreso**: video en bucle a pantalla completa con fundido suave, franjas de
-  cine que se abren y tarjeta de vidrio.
-- **Movimiento**: tarjetas que aparecen en cascada, filas de tabla que entran
-  suavemente, luz que sigue al puntero, botones con destello.
-- **Colores con significado intactos**: rojo = riesgo, ámbar = alerta,
-  verde = conforme. El acento elegible solo usa tonos tranquilos.
-
-## «Personalizar» (botón abajo a la derecha)
-
-Color (Aurora, Glaciar, Jade, Índigo) · Tema oscuro/claro · Tamaño de letra
-(A, A+, A++) · Tablas cómodas o compactas · Animaciones · Alto contraste ·
-Video de fondo. Todo se recuerda en cada computadora.
-
-## Instalar sobre la app
-
-Copiar `static/nuevo.css`, `static/ui.js` y los cuatro `templates/*.html` en
-las mismas carpetas de la app (reemplazando las plantillas) y reiniciar.
-Sin internet (app de escritorio) el video y las letras nuevas no cargan: la
-app usa letras del sistema y la luz de aurora, y funciona igual.
+| `static/estado.css`, `static/estado.js`, `static/marca.svg` | Nuevos |
+| `templates/*.html` | Nueva estructura, mismos IDs y funciones |
+| `app/server_login.patch` | Ruta `/login`: lista de municipalidades y registro de la elegida |

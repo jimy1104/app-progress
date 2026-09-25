@@ -1,0 +1,69 @@
+--- ../original/app/server.py	2026-09-25 14:15:35.991141662 +0000
++++ app/server.py	2026-09-25 22:09:17.876463229 +0000
+@@ -48,6 +48,21 @@
+     return render_template("setup.html", error=error)
+ 
+ 
++def _municipalidades_para_ingreso():
++    """Lista corta (RUC, nombre, sigla) de la base de municipalidades para el
++    primer paso de la pantalla de ingreso: «¿A qué municipalidad perteneces?»."""
++    try:
++        return [{"ruc": m["ruc"], "nombre": m["nombre"] or m["ruc"], "sigla": m.get("sigla", "")}
++                for m in municipalidades.list_municipalidades()]
++    except Exception:
++        return []
++
++
++def _render_login(**kw):
++    kw.setdefault("hay_clave_admin", auth.hay_clave_admin())
++    return render_template("login.html", municipalidades=_municipalidades_para_ingreso(), **kw)
++
++
+ @app.route("/login", methods=["GET", "POST"])
+ def login():
+     if not auth.any_users_exist():
+@@ -62,27 +77,38 @@
+         if user and es_entrada_admin:
+             if user.get("role") != "admin":
+                 auth.log_activity("Intento de entrada de administrador", f"{user['username']} (no es administrador)")
+-                return render_template("login.html", error="Esa cuenta no es de administrador.", abrir_admin=True)
++                return _render_login(error="Esa cuenta no es de administrador.", abrir_admin=True)
+             if not auth.verificar_clave_admin(request.form.get("clave_admin", "")):
+                 auth.log_activity("Intento de entrada de administrador", f"{user['username']} (clave de administrador incorrecta)")
+-                return render_template("login.html", error="La clave de administrador no es correcta.", abrir_admin=True)
++                return _render_login(error="La clave de administrador no es correcta.", abrir_admin=True)
+         if user:
+             session["username"] = user["username"]
+             session["login_at"] = datetime.now().isoformat()
+             auth.mark_login(user["username"])
++            # La municipalidad elegida en el primer paso. Solo se acepta una
++            # que exista en la base; como el área y el cargo, es informativa
++            # (bitácora y cabecera) y no cambia los permisos de la cuenta.
++            ruc_muni = request.form.get("municipalidad_ruc", "").strip()
++            muni = next((m for m in _municipalidades_para_ingreso() if m["ruc"] == ruc_muni), None)
++            session["municipalidad_ruc"] = muni["ruc"] if muni else ""
++            session["municipalidad_nombre"] = muni["nombre"] if muni else ""
+             # El área/cargo que la persona eligió en la pantalla previa al
+             # login es solo informativo (para la bitácora) -no cambia sus
+             # permisos reales, que siempre dependen del rol guardado en su
+             # cuenta. Así nadie puede obtener más acceso solo eligiendo
+             # "Jefe" en esa pantalla.
+             cargo_declarado = request.form.get("cargo_declarado", "").strip()
+-            detalle = f"cargo declarado: {cargo_declarado}" if cargo_declarado else ""
+-            auth.log_activity("Inicio de sesión", detalle)
++            partes = []
++            if muni:
++                partes.append(f"municipalidad: {muni['nombre']}")
++            if cargo_declarado:
++                partes.append(f"cargo declarado: {cargo_declarado}")
++            auth.log_activity("Inicio de sesión", " · ".join(partes))
+             return redirect(url_for("index"))
+         error = "Usuario o contraseña incorrectos."
+         if request.form.get("modo") == "admin":
+-            return render_template("login.html", error=error, abrir_admin=True)
+-    return render_template("login.html", error=error, hay_clave_admin=auth.hay_clave_admin())
++            return _render_login(error=error, abrir_admin=True)
++    return _render_login(error=error)
+ 
+ 
+ @app.route("/logout")

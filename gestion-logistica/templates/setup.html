@@ -6,16 +6,18 @@
 <title>Crear cuenta de administrador — Gestión de Logística</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marca.svg') }}">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
-<script src="{{ url_for('static', filename='ui.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='estado.css') }}">
+<script src="{{ url_for('static', filename='estado.js') }}"></script>
 </head>
-<body class="gl-login">
-<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
-  <div class="login-card" style="max-width:420px;">
+<body class="ingreso">
+<div class="ing-fondo" aria-hidden="true"><span class="ing-onda o1"></span><span class="ing-onda o2"></span><span class="ing-onda o3"></span></div>
+<div>
+  <div class="login-card">
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
-      <div class="masthead-mark">GL</div>
+      <img class="masthead-mark" src="{{ url_for('static', filename='marca.svg') }}" alt="Gestión de Logística">
       <div>
         <div class="masthead-eyebrow" style="color:var(--text-muted);">Primer uso</div>
         <h1 style="font-size:20px; color:var(--text);">Crear la cuenta de administrador</h1>

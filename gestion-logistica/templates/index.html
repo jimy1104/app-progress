@@ -6,50 +6,99 @@
 <title>Gestión de Logística</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marca.svg') }}">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
-<script src="{{ url_for('static', filename='ui.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='estado.css') }}">
+<script src="{{ url_for('static', filename='estado.js') }}"></script>
 </head>
 <body>
 <div class="app">
-  <header class="masthead">
-    <div class="masthead-left">
-      <div class="masthead-mark">GL</div>
-      <div style="min-width:0;">
-        <div class="masthead-eyebrow">Oficina de Logística · Dependencia Encargada de las Contrataciones</div>
-        <h1>Gestión de Logística</h1>
-        <div class="sub" id="viewSubtitle"></div>
+  <header class="masthead est-cabecera">
+    <!-- Franja superior: la municipalidad elegida al ingresar -->
+    <div class="est-franja">
+      <div class="est-in">
+        <span class="est-entidad">
+          <img src="{{ url_for('static', filename='marca.svg') }}" alt="" aria-hidden="true">
+          {{ session.get('municipalidad_nombre') or 'Oficina de Logística' }}
+        </span>
+        <nav class="est-tabs" aria-label="Atajos">
+          <button type="button" class="est-tab activa" data-ir="inicio">Inicio</button>
+          <button type="button" class="est-tab" data-ir="subprocesos">Subprocesos</button>
+          <button type="button" class="est-tab" data-ir="ejecutar">Ejecutar información</button>
+        </nav>
+        <div class="est-franja-der">
+          <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
+          {% if current_user %}
+          <span class="est-usuario" title="Tu cuenta"><span class="est-avatar">{{ current_user.username[:1]|upper }}</span>{{ current_user.username }}{% if current_user.role == 'admin' %} · admin{% elif current_user.role == 'jefe_logistica' %} · jefe de Logística{% elif current_user.role == 'empleado_logistica' %} · Logística{% endif %}</span>
+          <a class="est-salir" href="{{ url_for('logout') }}">Salir</a>
+          {% endif %}
+        </div>
       </div>
     </div>
-    <div class="masthead-right">
-      <button class="back-btn" id="backBtn" style="display:none;" onclick="goHome()">← Volver al inicio</button>
-      {% if current_user and current_user.role == 'admin' %}
-      <button class="back-btn" id="vpBtn" onclick="openVerificacionModal()" title="Verificación posterior — plazo de 10 días hábiles">
-        🔔 Verificación posterior <span id="vpBadge" class="alert-badge" style="display:none;">0</span>
-      </button>
-      {% endif %}
-      {% if current_user and current_user.role == 'admin' %}
-      <button class="back-btn" id="bandejaBtn" onclick="openBandejaModal()" title="Lo que dejaron los trabajadores, pendiente de cortar">
-        📥 Bandeja <span id="bandejaBadge" class="alert-badge" style="display:none;">0</span>
-      </button>
-      <button class="back-btn" onclick="openUsersModal()">👥 Usuarios</button>
-      {% endif %}
-      {% if current_user and current_user.role == 'jefe_logistica' %}
-      <button class="back-btn" onclick="openEquipoModal()">👥 Mi equipo</button>
-      {% endif %}
-      {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
-      <button class="back-btn" id="riesgosBtn" onclick="openRiesgosTablero()" title="Riesgos detectados en los expedientes cortados y su seguimiento">
-        ⚠️ Riesgos <span id="riesgosBadge" class="alert-badge" style="display:none;">0</span>
-      </button>
-      <button class="back-btn" onclick="openMunicipalidadesModal()">🏛️ Municipalidades</button>
-      <button class="back-btn" onclick="openActivityModal()">🕘 Actividad</button>
-      {% endif %}
-      <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
-      {% if current_user %}
-      <span class="back-btn" style="cursor:default;">{{ current_user.username }}{% if current_user.role == 'admin' %} · admin{% elif current_user.role == 'jefe_logistica' %} · jefe de Logística{% elif current_user.role == 'empleado_logistica' %} · Logística{% endif %}</span>
-      <a class="back-btn" href="{{ url_for('logout') }}" style="text-decoration:none;">Salir</a>
-      {% endif %}
+
+    <!-- Barra principal: marca + menús -->
+    <div class="est-nav">
+      <div class="est-in">
+        <a class="est-logo" href="{{ url_for('index') }}" aria-label="Gestión de Logística — inicio">
+          <img class="masthead-mark" src="{{ url_for('static', filename='marca.svg') }}" alt="">
+          <span class="est-logo-txt">
+            <span class="masthead-eyebrow">Oficina de Logística · Dependencia Encargada de las Contrataciones</span>
+            <h1>Gestión de <em>Logística</em></h1>
+          </span>
+        </a>
+        <button type="button" class="est-hamburguesa" aria-label="Abrir menú" aria-expanded="false"><span></span><span></span><span></span></button>
+        <nav class="est-menu" aria-label="Menú principal">
+          <div class="est-desplegable">
+            <button type="button" class="est-menu-btn" aria-expanded="false">Subprocesos <i class="est-flecha"></i></button>
+            <div class="est-panel" id="estMenuSubprocesos"><p class="loading-note">Cargando…</p></div>
+          </div>
+          {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+          <div class="est-desplegable">
+            <button type="button" class="est-menu-btn" aria-expanded="false">Control <span class="est-menu-badge" id="estControlBadge" hidden>0</span> <i class="est-flecha"></i></button>
+            <div class="est-panel">
+              <button class="back-btn est-item" id="riesgosBtn" onclick="openRiesgosTablero()" title="Riesgos detectados en los expedientes cortados y su seguimiento">
+                ⚠️ Riesgos <span id="riesgosBadge" class="alert-badge" style="display:none;">0</span>
+              </button>
+              {% if current_user.role == 'admin' %}
+              <button class="back-btn est-item" id="vpBtn" onclick="openVerificacionModal()" title="Verificación posterior — plazo de 10 días hábiles">
+                🔔 Verificación posterior <span id="vpBadge" class="alert-badge" style="display:none;">0</span>
+              </button>
+              <button class="back-btn est-item" id="bandejaBtn" onclick="openBandejaModal()" title="Lo que dejaron los trabajadores, pendiente de cortar">
+                📥 Bandeja <span id="bandejaBadge" class="alert-badge" style="display:none;">0</span>
+              </button>
+              {% endif %}
+            </div>
+          </div>
+          <div class="est-desplegable">
+            <button type="button" class="est-menu-btn" aria-expanded="false">Administración <i class="est-flecha"></i></button>
+            <div class="est-panel">
+              {% if current_user.role == 'admin' %}
+              <button class="back-btn est-item" onclick="openUsersModal()">👥 Usuarios</button>
+              {% endif %}
+              {% if current_user.role == 'jefe_logistica' %}
+              <button class="back-btn est-item" onclick="openEquipoModal()">👥 Mi equipo</button>
+              {% endif %}
+              <button class="back-btn est-item" onclick="openMunicipalidadesModal()">🏛️ Municipalidades</button>
+              <button class="back-btn est-item" onclick="openActivityModal()">🕘 Actividad</button>
+            </div>
+          </div>
+          {% endif %}
+        </nav>
+        <div class="est-acciones">
+          <button type="button" class="est-pill" onclick="openCrearExcel()">📤 Subir Excel</button>
+          <button type="button" class="est-pill est-pill-sec" onclick="openActualizar()">🔄 Actualizar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Migas: dónde estoy y cómo vuelvo -->
+    <div class="est-migas">
+      <div class="est-in">
+        <button class="back-btn" id="backBtn" style="display:none;" onclick="goHome()">← Volver al inicio</button>
+        <span class="est-migas-inicio">Inicio</span>
+        <div class="sub" id="viewSubtitle"></div>
+      </div>
     </div>
   </header>
 
@@ -59,19 +108,129 @@
       {% if current_user and current_user.role == 'admin' %}
       <div class="err-note" id="avisoAlmacenamiento" style="display:none;margin:0 0 18px;">⚠️ <span>Gestión de Logística está guardando los datos en una carpeta que Azure <strong>borra en cada despliegue</strong>. En Azure → Configuración → Application settings agrega <span class="mono">APP_STORAGE_DIR = /home/datos</span> y reinicia; si no, se perderá lo que se trabaje en la web.</span></div>
       {% endif %}
+      <!-- CARRUSEL PRINCIPAL: lo más importante del día, en grande -->
+      <section class="est-hero" id="estHero" aria-roledescription="carrusel" aria-label="Lo más importante">
+        <div class="est-slides">
+          <article class="est-slide" data-tema="resumen">
+            <div class="est-slide-txt">
+              <span class="est-kicker">Resumen</span>
+              <h2>Toda la logística de tu municipalidad en un solo lugar</h2>
+              <p><strong data-k="ordenes">…</strong> órdenes y <strong data-k="procesos">…</strong> procedimientos de selección ya cargados<span data-k="rango"></span>.</p>
+              <div class="est-slide-btns"><button type="button" class="est-cta" data-ir="subprocesos">Ver subprocesos</button><button type="button" class="est-cta est-cta-sec" data-ir="resumen">Ver el resumen</button></div>
+            </div>
+            <div class="est-ilus" aria-hidden="true">
+              <svg viewBox="0 0 200 200"><rect class="i-doc" x="46" y="38" width="92" height="118" rx="10"/><rect class="i-doc d2" x="62" y="52" width="92" height="118" rx="10"/><path class="i-lin" d="M78 84h56M78 100h56M78 116h36"/><rect class="i-bar b1" x="82" y="136" width="10" height="22" rx="2"/><rect class="i-bar b2" x="98" y="126" width="10" height="32" rx="2"/><rect class="i-bar b3" x="114" y="116" width="10" height="42" rx="2"/><path class="i-chevron" d="M160 40l12 12-12 12M172 40l12 12-12 12"/></svg>
+            </div>
+          </article>
+          {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+          <article class="est-slide" data-tema="riesgos">
+            <div class="est-slide-txt">
+              <span class="est-kicker">Riesgos</span>
+              <h2 data-k="riesgosTitulo">Riesgos de los expedientes</h2>
+              <p data-k="riesgosTexto">Consultando los expedientes cortados…</p>
+              <div class="est-slide-btns"><button type="button" class="est-cta" onclick="openRiesgosTablero()">Ver riesgos</button></div>
+            </div>
+            <div class="est-ilus" aria-hidden="true">
+              <svg viewBox="0 0 200 200"><path class="i-escudo" d="M100 30l56 20v42c0 36-24 60-56 74-32-14-56-38-56-74V50z"/><path class="i-excl" d="M100 70v44"/><circle class="i-punto" cx="100" cy="132" r="6"/></svg>
+              <span class="est-alerta" data-k="riesgosAlerta" hidden>⚠ Alerta</span>
+            </div>
+          </article>
+          {% endif %}
+          {% if current_user and current_user.role == 'admin' %}
+          <article class="est-slide" data-tema="verificacion">
+            <div class="est-slide-txt">
+              <span class="est-kicker">Verificación posterior</span>
+              <h2 data-k="vpTitulo">Plazo de 10 días hábiles</h2>
+              <p data-k="vpTexto">Revisando los plazos…</p>
+              <div class="est-slide-btns"><button type="button" class="est-cta" onclick="openVerificacionModal()">Ver seguimiento</button></div>
+            </div>
+            <div class="est-ilus" aria-hidden="true">
+              <svg viewBox="0 0 200 200"><rect class="i-doc" x="40" y="50" width="120" height="104" rx="12"/><path class="i-lin" d="M40 78h120M72 38v24M128 38v24"/><circle class="i-reloj" cx="132" cy="130" r="30"/><path class="i-aguja" d="M132 114v16l11 8"/></svg>
+              <span class="est-alerta" data-k="vpAlerta" hidden>⏰ Por vencer</span>
+            </div>
+          </article>
+          <article class="est-slide" data-tema="bandeja">
+            <div class="est-slide-txt">
+              <span class="est-kicker">Bandeja</span>
+              <h2 data-k="bandejaTitulo">Escaneos de los trabajadores</h2>
+              <p data-k="bandejaTexto">Revisando la bandeja…</p>
+              <div class="est-slide-btns"><button type="button" class="est-cta" onclick="openBandejaModal()">Abrir bandeja</button></div>
+            </div>
+            <div class="est-ilus" aria-hidden="true">
+              <svg viewBox="0 0 200 200"><rect class="i-doc hoja1" x="66" y="34" width="68" height="84" rx="8"/><rect class="i-doc hoja2" x="74" y="46" width="68" height="84" rx="8"/><path class="i-bandeja" d="M36 112h40l8 18h32l8-18h40v44a10 10 0 0 1-10 10H46a10 10 0 0 1-10-10z"/></svg>
+            </div>
+          </article>
+          {% endif %}
+          <article class="est-slide" data-tema="ejecutar">
+            <div class="est-slide-txt">
+              <span class="est-kicker">Ejecutar información</span>
+              <h2>Mantén la base al día</h2>
+              <p>Sube el Excel de SEACE o actualiza desde el maestro: Gestión de Logística junta todo sin duplicar nada.</p>
+              <div class="est-slide-btns"><button type="button" class="est-cta" onclick="openCrearExcel()">📤 Subir Excel</button><button type="button" class="est-cta est-cta-sec" onclick="openActualizar()">🔄 Actualizar</button></div>
+            </div>
+            <div class="est-ilus" aria-hidden="true">
+              <svg viewBox="0 0 200 200"><path class="i-nube" d="M60 142a32 32 0 0 1 4-64 42 42 0 0 1 80 10 28 28 0 0 1-4 54z"/><path class="i-flecha" d="M100 150v-56M80 112l20-20 20 20"/></svg>
+            </div>
+          </article>
+        </div>
+        <button type="button" class="est-hero-flecha prev" aria-label="Anterior">‹</button>
+        <button type="button" class="est-hero-flecha next" aria-label="Siguiente">›</button>
+        <div class="est-puntos" role="tablist" aria-label="Elegir diapositiva"></div>
+      </section>
+
+      <!-- RESUMEN DE UN VISTAZO: lo que todos ven al entrar -->
+      <section class="est-resumen" id="estResumen" aria-labelledby="estResumenTitulo">
+        <h2 class="est-titulo" id="estResumenTitulo">Resumen de un vistazo</h2>
+        <div class="est-kpis">
+          <div class="est-kpi"><span class="est-kpi-ico">🧾</span><strong data-cuenta="ordenes">0</strong><span>Órdenes cargadas</span></div>
+          <div class="est-kpi"><span class="est-kpi-ico">💰</span><strong data-cuenta="monto" data-formato="soles">S/ 0</strong><span>Monto de las órdenes</span></div>
+          <div class="est-kpi"><span class="est-kpi-ico">📋</span><strong data-cuenta="procesos">0</strong><span>Procedimientos de selección</span></div>
+          {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+          <button type="button" class="est-kpi est-kpi-clic" onclick="openRiesgosTablero()"><span class="est-kpi-ico">⚠️</span><strong data-cuenta="riesgos">0</strong><span>Riesgos abiertos</span></button>
+          {% endif %}
+          {% if current_user and current_user.role == 'admin' %}
+          <button type="button" class="est-kpi est-kpi-clic" onclick="openVerificacionModal()"><span class="est-kpi-ico">🔔</span><strong data-cuenta="verificar">0</strong><span>Por verificar (vencidos o por vencer)</span></button>
+          {% endif %}
+        </div>
+        <figure class="est-grafico" id="estGrafico">
+          <figcaption>
+            <strong>Órdenes cargadas por año</strong>
+            <span class="est-leyenda"><i class="c-emp"></i>Empresas (RUC 20) <i class="c-loc"></i>Locadores (RUC 10)</span>
+          </figcaption>
+          <div class="est-barras" role="img" aria-label="Órdenes cargadas por año"></div>
+          <div class="est-tooltip" hidden></div>
+        </figure>
+      </section>
+
+      <h2 class="est-titulo" id="estSubprocesos">Subprocesos de Logística</h2>
       <div class="section-label">Gestión Logística</div>
-      <div class="card-grid" id="cardGrid"></div>
+      <div class="est-carrusel">
+        <button type="button" class="est-carrusel-flecha prev" aria-label="Ver anteriores">‹</button>
+        <div class="card-grid" id="cardGrid"></div>
+        <button type="button" class="est-carrusel-flecha next" aria-label="Ver siguientes">›</button>
+      </div>
       <p class="foot-note" id="footNote">Cargando resumen…</p>
 
       <!-- Lo que la app YA trae cargado. Se ve apenas se entra, sin subir nada. -->
-      <details class="guide-box" id="datosCargadosBox" open>
+      <div class="est-banners">
+        <button type="button" class="est-banner" data-abre="datosCargadosBox">
+          <span class="est-banner-txt"><small>Información ya cargada</small>Mira año por año lo que Gestión de Logística ya tiene</span>
+          <span class="est-banner-ilus" aria-hidden="true">🗄️</span>
+        </button>
+        <button type="button" class="est-banner est-banner-b" data-abre="guiaRapidaBox">
+          <span class="est-banner-txt"><small>Guía rápida</small>De dónde sale la información de cada subproceso</span>
+          <span class="est-banner-ilus" aria-hidden="true">🧭</span>
+        </button>
+      </div>
+
+      <details class="guide-box" id="datosCargadosBox">
         <summary>🗄️ Información ya cargada en Gestión de Logística — año por año</summary>
         <div id="datosCargados" class="datos-cargados">
           <p class="loading-note">Cargando…</p>
         </div>
       </details>
 
-      <details class="guide-box" open>
+      <details class="guide-box" id="guiaRapidaBox">
         <summary>🧭 Guía rápida — de dónde sale la información de cada subproceso</summary>
         <div class="guide-steps">
           <div class="guide-step">
@@ -124,7 +283,7 @@
         </div>
       </details>
 
-      <div class="console">
+      <div class="console" id="estEjecutar">
         <div class="console-head">
           <div>
             <h2>Ejecutar Información</h2>
@@ -332,7 +491,43 @@
     </section>
   </main>
 
-  <footer class="app-footer">Gestión de Logística · Oficina de Logística — Dependencia Encargada de las Contrataciones</footer>
+  <footer class="est-pie">
+    <div class="est-in est-pie-cols">
+      <div>
+        <h3>Gestión de Logística</h3>
+        <p>Programa de la Oficina de Logística para ordenar las contrataciones de la entidad: desde el requerimiento hasta el pago.</p>
+        <ul>
+          <li><button type="button" data-ir="resumen">Resumen de un vistazo</button></li>
+          <li><button type="button" data-abre="guiaRapidaBox">Guía rápida</button></li>
+          <li><button type="button" data-abre="datosCargadosBox">Información ya cargada</button></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Subprocesos</h3>
+        <ul id="estPieSubprocesos"></ul>
+      </div>
+      <div>
+        <h3>Ejecutar información</h3>
+        <ul>
+          <li><button type="button" onclick="openCrearExcel()">Subir Excel</button></li>
+          <li><button type="button" onclick="openActualizar()">Actualizar</button></li>
+          <li><button type="button" onclick="document.getElementById('bajarInfoBtn').click()">Bajar información</button></li>
+          {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}<li><button type="button" onclick="openOsModal()">Orden de Servicio</button></li>{% endif %}
+        </ul>
+      </div>
+      <div class="est-pie-caja">
+        <h3>¿Necesitas ayuda?</h3>
+        <p>Revisa la guía rápida o pide al administrador que te cree o cambie la cuenta.</p>
+        <button type="button" class="est-cta" data-abre="guiaRapidaBox">Abrir la guía</button>
+      </div>
+    </div>
+    <div class="est-pie-base">
+      <div class="est-in">
+        <span><strong>Gestión de Logística</strong> · Oficina de Logística — Dependencia Encargada de las Contrataciones{% if session.get('municipalidad_nombre') %} · {{ session.get('municipalidad_nombre') }}{% endif %}</span>
+        <span class="app-footer">Hecho para el trabajo diario del Estado</span>
+      </div>
+    </div>
+  </footer>
 </div>
 
 <div class="scrim" id="scrim" onclick="closeDrawer()"></div>
