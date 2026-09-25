@@ -200,9 +200,6 @@ input:focus-visible {
 .aurora-b {
   animation: drift-b 22s ease-in-out infinite alternate;
 }
-.shake {
-  animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
-}
 .pop {
   animation: pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
@@ -215,6 +212,11 @@ input:focus-visible {
   margin: -3px 0 0 -3px;
   border-radius: 9999px;
   animation: spark 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.sheen {
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.14) 50%, transparent 80%);
+  transform: translateX(-120%);
+  animation: sheen 7s cubic-bezier(0.4, 0, 0.2, 1) 2.6s infinite;
 }
 .pulse-ring::after {
   content: '';
@@ -240,6 +242,15 @@ input:focus-visible {
   animation: letterbox-bottom 1.3s cubic-bezier(0.7, 0, 0.2, 1) 0.25s forwards;
 }
 
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  22%,
+  100% {
+    transform: translateX(320%);
+  }
+}
 @keyframes letterbox-top {
   to {
     transform: translateY(-100%);
@@ -307,12 +318,6 @@ input:focus-visible {
   60% { transform: translate(-2%, -1%); }
   80% { transform: translate(3%, 3%); }
   100% { transform: translate(0, 0); }
-}
-@keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(3px); }
-  30%, 50%, 70% { transform: translateX(-6px); }
-  40%, 60% { transform: translateX(6px); }
 }
 @keyframes pop {
   from {

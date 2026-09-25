@@ -9,6 +9,8 @@ const THEMES: { id: Theme; name: string; colors: [string, string, string] }[] = 
   { id: 'jade', name: 'Jade', colors: ['#34d399', '#a3e635', '#2dd4bf'] },
 ];
 
+const TIP_KEY = 'asme:tip-seen';
+
 interface Props {
   prefs: Preferences;
   update: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
@@ -52,15 +54,33 @@ function Row({ icon: Icon, title, hint, children }: { icon: typeof Film; title: 
 
 export default function Personalize({ prefs, update, reset }: Props) {
   const [open, setOpen] = useState(false);
-  const [hinted, setHinted] = useState(false);
+  const [tip, setTip] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
-  // Draw attention to the button once, shortly after the intro.
+  // First visit only: point out the panel once the intro has settled.
   useEffect(() => {
-    const t = window.setTimeout(() => setHinted(true), 9000);
-    return () => clearTimeout(t);
+    try {
+      if (localStorage.getItem(TIP_KEY)) return;
+    } catch {
+      /* no storage — still show the tip */
+    }
+    const show = window.setTimeout(() => setTip(true), 3200);
+    const hide = window.setTimeout(() => dismissTip(), 14000);
+    return () => {
+      clearTimeout(show);
+      clearTimeout(hide);
+    };
   }, []);
+
+  const dismissTip = () => {
+    setTip(false);
+    try {
+      localStorage.setItem(TIP_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -165,16 +185,32 @@ export default function Personalize({ prefs, update, reset }: Props) {
         </div>
       )}
 
+      {tip && !open && (
+        <div role="note" className="sheet-in relative mr-1 flex max-w-[16rem] items-start gap-2 rounded-2xl bg-white py-2.5 pl-3.5 pr-2 text-left text-[13px] font-medium leading-snug text-black shadow-2xl">
+          <span>
+            <span className="font-bold">Tip:</span> change colors, text size and motion here.
+          </span>
+          <button
+            onClick={dismissTip}
+            aria-label="Dismiss tip"
+            className="-mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-black/50 transition-colors hover:bg-black/5 hover:text-black"
+          >
+            <X size={14} />
+          </button>
+          <span aria-hidden="true" className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 bg-white" />
+        </div>
+      )}
+
       <button
         ref={toggleRef}
         onClick={() => {
           setOpen((o) => !o);
-          setHinted(false);
+          if (tip) dismissTip();
         }}
         aria-expanded={open}
         aria-label={open ? 'Close personalization' : 'Personalize'}
         className={`reveal liquid-glass glass-panel group flex items-center gap-2 rounded-full p-2.5 text-sm sm:py-3 sm:pl-3.5 sm:pr-5 font-medium text-white shadow-xl transition-transform hover:scale-[1.03] ${
-          hinted && !open ? 'pulse-ring' : ''
+          tip && !open ? 'pulse-ring' : ''
         }`}
         style={{ ['--d' as string]: '1700ms' }}
       >

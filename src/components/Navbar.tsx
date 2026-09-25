@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Globe, Menu, X } from 'lucide-react';
+import { FOCUS_EMAIL_EVENT } from './Hero';
 
 const LINKS = ['Features', 'Pricing', 'About'];
+
+const goToSignUp = () => window.dispatchEvent(new Event(FOCUS_EMAIL_EVENT));
 
 export default function Navbar() {
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
@@ -64,7 +67,10 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="hidden text-sm font-medium text-white transition-opacity hover:opacity-80 sm:inline">
+            <button
+              onClick={goToSignUp}
+              className="hidden text-sm font-medium text-white transition-opacity hover:opacity-80 sm:inline"
+            >
               Sign Up
             </button>
             <button className="liquid-glass rounded-full px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5">
@@ -74,7 +80,7 @@ export default function Navbar() {
               onClick={() => setMenuOpen((o) => !o)}
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}
-              className="-mr-2 grid h-9 w-9 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+              className="-mr-2 grid h-10 w-10 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -87,7 +93,13 @@ export default function Navbar() {
               <a
                 key={link}
                 href={`#${link.toLowerCase().replace(' ', '-')}`}
-                onClick={() => setMenuOpen(false)}
+                onClick={(e) => {
+                  setMenuOpen(false);
+                  if (link === 'Sign Up') {
+                    e.preventDefault();
+                    goToSignUp();
+                  }
+                }}
                 className="reveal flex items-center justify-between rounded-2xl px-4 py-3.5 text-base font-medium text-white/85 transition-colors hover:bg-white/5 hover:text-white"
                 style={{ ['--d' as string]: `${i * 50}ms`, animationDuration: '500ms' }}
               >

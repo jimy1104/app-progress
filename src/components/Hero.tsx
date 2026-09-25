@@ -5,6 +5,28 @@ import Magnetic from './Magnetic';
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Fired by "Sign Up" buttons elsewhere on the page. */
+export const FOCUS_EMAIL_EVENT = 'asme:focus-email';
+
+const motionAllowed = () =>
+  document.documentElement.dataset.motion !== 'off' &&
+  !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const SHAKE: Keyframe[] = [
+  { transform: 'translateX(0)' },
+  { transform: 'translateX(-7px)' },
+  { transform: 'translateX(6px)' },
+  { transform: 'translateX(-4px)' },
+  { transform: 'translateX(3px)' },
+  { transform: 'translateX(0)' },
+];
+const ATTENTION: Keyframe[] = [
+  { transform: 'scale(1)' },
+  { transform: 'scale(1.035)' },
+  { transform: 'scale(0.99)' },
+  { transform: 'scale(1)' },
+];
 const SPARKS = Array.from({ length: 12 }, (_, i) => {
   const angle = (i / 12) * Math.PI * 2;
   const dist = 38 + (i % 3) * 14;
@@ -31,18 +53,34 @@ function Letters({ text, offset = 0 }: { text: string; offset?: number }) {
 export default function Hero() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
-  const [shakeKey, setShakeKey] = useState(0);
   const [focused, setFocused] = useState(false);
   const timer = useRef<number | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const play = (frames: Keyframe[], duration: number) => {
+    if (motionAllowed()) formRef.current?.animate(frames, { duration, easing: 'cubic-bezier(.36,.07,.19,.97)' });
+  };
 
   useEffect(() => () => void (timer.current !== null && clearTimeout(timer.current)), []);
+
+  // "Sign Up" anywhere on the page brings the visitor straight here.
+  useEffect(() => {
+    const onFocusEmail = () => {
+      inputRef.current?.focus();
+      play(ATTENTION, 600);
+    };
+    window.addEventListener(FOCUS_EMAIL_EVENT, onFocusEmail);
+    return () => window.removeEventListener(FOCUS_EMAIL_EVENT, onFocusEmail);
+  }, []);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (status === 'loading') return;
     if (!EMAIL_RE.test(email.trim())) {
       setStatus('error');
-      setShakeKey((k) => k + 1);
+      play(SHAKE, 450);
+      inputRef.current?.focus();
       return;
     }
     setStatus('loading');
@@ -103,15 +141,19 @@ export default function Hero() {
             }`}
           />
           <form
-            key={shakeKey}
+            ref={formRef}
             noValidate
             onSubmit={onSubmit}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             className={`group liquid-glass flex items-center gap-3 rounded-full py-2 pl-6 pr-2 transition-shadow duration-300 focus-within:shadow-[0_0_0_1px_rgb(var(--a1)/0.5),0_10px_40px_-10px_rgb(var(--a1)/0.5)] ${
-              status === 'error' ? 'shake shadow-[0_0_0_1px_rgb(251_113_133/0.7)]' : ''
+              status === 'error' ? 'shadow-[0_0_0_1px_rgb(251_113_133/0.7)]' : ''
             }`}
           >
+            {/* periodic light sweep that guides the eye to the main action */}
+            {!focused && !done && (
+              <span aria-hidden="true" className="sheen pointer-events-none absolute inset-y-0 left-0 w-1/3" />
+            )}
             {done ? (
               <p className="pop flex-1 text-left text-sm text-white sm:text-base" role="status">
                 You&rsquo;re on the list — welcome aboard.
@@ -120,6 +162,8 @@ export default function Hero() {
               <>
                 <Mail size={18} className="shrink-0 text-white/40 transition-colors group-focus-within:text-[rgb(var(--a1))]" />
                 <input
+                  ref={inputRef}
+                  id="email"
                   type="email"
                   value={email}
                   onChange={(e) => {

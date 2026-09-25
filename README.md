@@ -19,4 +19,5 @@ npm run build
 - **Motion**: letter-by-letter headline reveal, gradient "curious" with a hand-drawn underline, staggered entrances, drifting aurora colour grade and film grain.
 - **Friendly subscribe flow**: validation with shake + hint, loading spinner, success state with a small celebratory burst.
 - **Personalize panel** (bottom-right): 4 colour moods, larger text, high contrast, animations on/off, background video on/off — saved in the browser. Respects the OS "reduce motion" setting.
+- **Guided first visit**: a one-time tip points to Personalize; "Sign Up" jumps to the email field; a soft light sweep highlights the main action.
 - **Keyboard friendly**: visible accent focus rings; Escape closes menus and returns focus.
