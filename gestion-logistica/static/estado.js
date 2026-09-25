@@ -127,7 +127,7 @@
     if (!hero) return;
     var slides = $$('.est-slide', hero);
     var puntos = $('.est-puntos', hero);
-    var actual = 0, timer = null, pausa = false;
+    var actual = 0, timer = null, pausa = false, tocado = false;
     var DURACION = 7000;
 
     slides.forEach(function (s, i) {
@@ -145,6 +145,7 @@
     });
 
     function mostrar(i, manual) {
+      if (manual) tocado = true;
       actual = (i + slides.length) % slides.length;
       slides.forEach(function (s, k) {
         s.classList.toggle('activa', k === actual);
@@ -188,10 +189,14 @@
     document.addEventListener('visibilitychange', function () { pausar(document.hidden); });
 
     mostrar(0);
-    carrusel = { mostrar: mostrar, slides: slides, ir: function (tema) {
-      var i = slides.findIndex(function (s) { return s.dataset.tema === tema; });
-      if (i >= 0) mostrar(i, true);
-    } };
+    carrusel = {
+      mostrar: mostrar, slides: slides,
+      tocado: function () { return tocado; },
+      ir: function (tema, automatico) {
+        var i = slides.findIndex(function (s) { return s.dataset.tema === tema; });
+        if (i >= 0) mostrar(i, !automatico);
+      }
+    };
   }
 
   /* ---------------- Números que cuentan ---------------- */
@@ -303,7 +308,7 @@
       valores.verificar = vp.alertas || 0;
       if (vp.alertas) {
         poner('vpTitulo', plural(vp.alertas, 'expediente necesita', 'expedientes necesitan') + ' atención');
-        poner('vpTexto', fmtInt(vp.vencidos) + ' vencidos y ' + fmtInt(vp.por_vencer) + ' por vencer, de ' + plural(vp.pendientes, 'pendiente', 'pendientes') +
+        poner('vpTexto', plural(vp.vencidos, 'vencido', 'vencidos') + ' y ' + fmtInt(vp.por_vencer) + ' por vencer, de ' + plural(vp.pendientes, 'pendiente', 'pendientes') +
           '. El plazo es de ' + (vp.plazo_dias || 10) + ' días hábiles.');
       } else {
         poner('vpTitulo', 'Plazos al día');
@@ -329,6 +334,13 @@
       alVerse(el, function () { contar(el, valores[k], el.dataset.formato); });
     });
     grafico(resumen.por_anio);
+
+    // Si hay algo urgente, el carrusel empieza por ahí (si la persona todavía
+    // no lo tocó): primero los plazos vencidos, luego los riesgos abiertos.
+    if (carrusel && !carrusel.tocado()) {
+      if ($('[data-tema="verificacion"].alerta')) carrusel.ir('verificacion', true);
+      else if ($('[data-tema="riesgos"].alerta')) carrusel.ir('riesgos', true);
+    }
   }
 
   /* ---------------- Carrusel de tarjetas de subprocesos ---------------- */
