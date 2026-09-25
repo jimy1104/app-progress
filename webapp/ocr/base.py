@@ -21,6 +21,7 @@ class OCRWord:
     conf: float                       # 0..1
     bbox: tuple                       # (x0,y0,x1,y1) en fracciones 0..1
     page: int                         # 1-based
+    votos: int = 1                    # cuántas lecturas independientes coinciden en esta palabra
 
 
 @dataclass
@@ -30,6 +31,8 @@ class OCRLine:
     bbox: tuple
     page: int
     words: List[OCRWord] = field(default_factory=list)
+    role: str = ""                    # title / sectionHeading / pageHeader / pageFooter / pageNumber (Azure)
+    manuscrita: bool = False          # Azure la marcó como escrita a mano (firmas, visto bueno, folios)
 
 
 @dataclass
@@ -39,6 +42,7 @@ class OCRPage:
     height_pt: float
     rotation: int                     # /Rotate del PDF (0/90/180/270)
     lines: List[OCRLine] = field(default_factory=list)
+    meta: dict = field(default_factory=dict)   # en_blanco, tinta, dpi_origen, fuente, codigos (QR), lecturas
 
     @property
     def text(self) -> str:
@@ -78,17 +82,23 @@ class OCRDocument:
     def from_json(cls, path: str) -> "OCRDocument":
         with open(path, encoding="utf-8") as f:
             d = json.load(f)
+        return cls.from_dict(d)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "OCRDocument":
         pages = []
         for p in d["pages"]:
             lines = [OCRLine(text=l["text"], conf=l["conf"], bbox=tuple(l["bbox"]),
                              page=l["page"],
                              words=[OCRWord(text=w["text"], conf=w["conf"],
-                                            bbox=tuple(w["bbox"]), page=w["page"])
-                                    for w in l["words"]])
+                                            bbox=tuple(w["bbox"]), page=w["page"],
+                                            votos=w.get("votos", 1))
+                                    for w in l["words"]],
+                             role=l.get("role", ""), manuscrita=l.get("manuscrita", False))
                      for l in p["lines"]]
             pages.append(OCRPage(number=p["number"], width_pt=p["width_pt"],
                                  height_pt=p["height_pt"], rotation=p["rotation"],
-                                 lines=lines))
+                                 lines=lines, meta=p.get("meta", {})))
         return cls(provider=d["provider"], source_path=d["source_path"], pages=pages,
                    meta=d.get("meta", {}))
 
