@@ -431,7 +431,22 @@ main > .view:not(#view-home) { padding-top: 28px; }
 .guide-box { background: var(--est-blanco); border: 0; border-radius: 14px; box-shadow: var(--est-sombra), 0 0 0 1px var(--est-linea); scroll-margin-top: 150px; }
 .guide-box summary::before { color: var(--rojo); }
 .guide-box[open] > :not(summary) { animation: est-sube 0.45s ease backwards; }
-.guide-num { background: var(--rojo); }
+.guide-num { background: var(--rojo); box-shadow: 0 0 0 5px var(--rojo-tinte); position: relative; z-index: 1; }
+.dc-titulo .dc-total { background: var(--rojo-tinte); color: var(--rojo); }
+/* Guía rápida como línea de tiempo: la flecha pasa a ser un tramo rojo */
+.guide-steps { gap: 0; }
+.guide-arrow { height: 22px; padding: 0; margin-left: 14px; width: 2px; font-size: 0; background: linear-gradient(var(--rojo), rgba(200, 16, 46, 0.25)); border-radius: 2px; }
+.guide-box[open] .guide-step, .guide-box[open] .guide-arrow { animation: est-sube 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.guide-box[open] .guide-steps > :nth-child(2) { animation-delay: 0.08s; }
+.guide-box[open] .guide-steps > :nth-child(3) { animation-delay: 0.16s; }
+.guide-box[open] .guide-steps > :nth-child(4) { animation-delay: 0.24s; }
+.guide-box[open] .guide-steps > :nth-child(5) { animation-delay: 0.32s; }
+.guide-box[open] .guide-steps > :nth-child(6) { animation-delay: 0.40s; }
+.guide-box[open] .guide-steps > :nth-child(7) { animation-delay: 0.48s; }
+.guide-box[open] .guide-steps > :nth-child(8) { animation-delay: 0.56s; }
+.guide-box[open] .guide-steps > :nth-child(9) { animation-delay: 0.64s; }
+.guide-step { border-radius: 12px; transition: background 0.2s ease; }
+.guide-step:hover { background: var(--rojo-tinte); }
 .guide-extra { background: var(--rojo-tinte); }
 .guide-extra strong { color: var(--rojo); }
 
