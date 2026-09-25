@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestión de Logística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
+</head>
+<body>
+<div class="app">
+  <header class="masthead">
+    <div class="masthead-left">
+      <div class="masthead-mark">GL</div>
+      <div style="min-width:0;">
+        <div class="masthead-eyebrow">Oficina de Logística · Dependencia Encargada de las Contrataciones</div>
+        <h1>Gestión de Logística</h1>
+        <div class="sub" id="viewSubtitle"></div>
+      </div>
+    </div>
+    <div class="masthead-right">
+      <button class="back-btn" id="backBtn" style="display:none;" onclick="goHome()">← Volver al inicio</button>
+      {% if current_user and current_user.role == 'admin' %}
+      <button class="back-btn" id="vpBtn" onclick="openVerificacionModal()" title="Verificación posterior — plazo de 10 días hábiles">
+        🔔 Verificación posterior <span id="vpBadge" class="alert-badge" style="display:none;">0</span>
+      </button>
+      {% endif %}
+      {% if current_user and current_user.role == 'admin' %}
+      <button class="back-btn" id="bandejaBtn" onclick="openBandejaModal()" title="Lo que dejaron los trabajadores, pendiente de cortar">
+        📥 Bandeja <span id="bandejaBadge" class="alert-badge" style="display:none;">0</span>
+      </button>
+      <button class="back-btn" onclick="openUsersModal()">👥 Usuarios</button>
+      {% endif %}
+      {% if current_user and current_user.role == 'jefe_logistica' %}
+      <button class="back-btn" onclick="openEquipoModal()">👥 Mi equipo</button>
+      {% endif %}
+      {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+      <button class="back-btn" id="riesgosBtn" onclick="openRiesgosTablero()" title="Riesgos detectados en los expedientes cortados y su seguimiento">
+        ⚠️ Riesgos <span id="riesgosBadge" class="alert-badge" style="display:none;">0</span>
+      </button>
+      <button class="back-btn" onclick="openMunicipalidadesModal()">🏛️ Municipalidades</button>
+      <button class="back-btn" onclick="openActivityModal()">🕘 Actividad</button>
+      {% endif %}
+      <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
+      {% if current_user %}
+      <span class="back-btn" style="cursor:default;">{{ current_user.username }}{% if current_user.role == 'admin' %} · admin{% elif current_user.role == 'jefe_logistica' %} · jefe de Logística{% elif current_user.role == 'empleado_logistica' %} · Logística{% endif %}</span>
+      <a class="back-btn" href="{{ url_for('logout') }}" style="text-decoration:none;">Salir</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main>
+    <!-- HOME VIEW -->
+    <section class="view active" id="view-home">
+      {% if current_user and current_user.role == 'admin' %}
+      <div class="err-note" id="avisoAlmacenamiento" style="display:none;margin:0 0 18px;">⚠️ <span>Gestión de Logística está guardando los datos en una carpeta que Azure <strong>borra en cada despliegue</strong>. En Azure → Configuración → Application settings agrega <span class="mono">APP_STORAGE_DIR = /home/datos</span> y reinicia; si no, se perderá lo que se trabaje en la web.</span></div>
+      {% endif %}
+      <div class="section-label">Gestión Logística</div>
+      <div class="card-grid" id="cardGrid"></div>
+      <p class="foot-note" id="footNote">Cargando resumen…</p>
+
+      <!-- Lo que la app YA trae cargado. Se ve apenas se entra, sin subir nada. -->
+      <details class="guide-box" id="datosCargadosBox" open>
+        <summary>🗄️ Información ya cargada en Gestión de Logística — año por año</summary>
+        <div id="datosCargados" class="datos-cargados">
+          <p class="loading-note">Cargando…</p>
+        </div>
+      </details>
+
+      <details class="guide-box" open>
+        <summary>🧭 Guía rápida — de dónde sale la información de cada subproceso</summary>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="guide-num">1</div>
+            <div class="guide-icon">📋</div>
+            <div class="guide-text">
+              <strong>Proceso de Selección</strong>
+              <p>Todo lo que pasa de las <strong>8 UIT (S/ 44,000)</strong>. Sale del Buscador de Condiciones de Contratación de SEACE: se exporta a Excel y se sube con <em>"📗 Subir Excel de SEACE"</em>. De cada procedimiento se baja la <strong>Integración de las Bases</strong>; si SEACE no la publicó, se usa el único archivo que haya (Bases Administrativas) y la columna lo dice: <em>Solo B.A</em>. Aquí no hay columna de TDR porque <strong>las Bases Integradas hacen de términos de referencia</strong>.</p>
+            </div>
+          </div>
+          <div class="guide-arrow">↓</div>
+          <div class="guide-step">
+            <div class="guide-num">2</div>
+            <div class="guide-icon">🧾</div>
+            <div class="guide-text">
+              <strong>Contratos Menores de Bienes y Servicios</strong>
+              <p>Órdenes de compra y de servicio <strong>hasta S/ 44,000</strong>. Vienen del Buscador de Órdenes de SEACE (<em>"📤 Subir Excel"</em>, acepta el .xls tal cual). Al entrar se separan en <strong>Personas Jurídicas</strong> (RUC 20) y <strong>Personas Naturales</strong> (RUC 10 con orden de compra). El requerimiento es el mismo documento que en el subproceso 1.</p>
+            </div>
+          </div>
+          <div class="guide-arrow">↓</div>
+          <div class="guide-step">
+            <div class="guide-num">3</div>
+            <div class="guide-icon">📑</div>
+            <div class="guide-text">
+              <strong>Ejecución Contractual de Bienes y Servicios</strong>
+              <p>Del expediente escaneado, la parte que va <strong>desde que empieza el contrato hasta que se paga</strong>. Se separa en <strong>Bienes</strong> (Guía de Remisión con conformidad de Almacén · NEA · Conformidad del Área Usuaria) y <strong>Servicios</strong> (Informe de Actividades del Proveedor · Conformidad del Área Usuaria).</p>
+            </div>
+          </div>
+          <div class="guide-arrow">↓</div>
+          <div class="guide-step">
+            <div class="guide-num">4</div>
+            <div class="guide-icon">🧑‍💼</div>
+            <div class="guide-text">
+              <strong>Contrataciones de Locadores de Servicios</strong>
+              <p>Locación de servicios de personas naturales (RUC 10, recibo por honorarios). La base viene de SEACE, y con <em>"🧑‍💼 Excel de locadores"</em> se completan las tres columnas que SEACE no trae: <strong>Área usuaria, Servicio SIGA y SIAF</strong>.</p>
+            </div>
+          </div>
+          <div class="guide-arrow">↓</div>
+          <div class="guide-step">
+            <div class="guide-num">5</div>
+            <div class="guide-icon">🏬</div>
+            <div class="guide-text">
+              <strong>Gestión de Almacén</strong>
+              <p>Del mismo expediente que el subproceso 3: <strong>Inventario de Almacén · NEA · PECOSA · Saldos</strong>.</p>
+            </div>
+          </div>
+        </div>
+        <div class="guide-extra">
+          <strong>¿Y los expedientes escaneados?</strong> Los trabajadores los dejan en <em>"📥 Bandeja"</em>, cada uno en su carpeta. Desde ahí el administrador los corta y Gestión de Logística los reparte sola al subproceso que les toca según el monto, el RUC y si la orden es de compra o de servicio.
+        </div>
+      </details>
+
+      <div class="console">
+        <div class="console-head">
+          <div>
+            <h2>Ejecutar Información</h2>
+            <p>Actualiza la base desde el Excel maestro sin duplicar nada, descarga lo que ya tienes o procesa un lote de Órdenes de Servicio.</p>
+          </div>
+          <div class="console-actions">
+            <button class="btn btn-amber" onclick="openCrearExcel()">📤 Subir Excel</button>
+            {% if current_user and current_user.role == 'admin' %}
+            <button class="btn btn-ghost" onclick="openAlmacen()" title="Dónde se guardan los expedientes enteros: en Azure Blob Storage">💾 Almacenamiento</button>
+            <button class="btn btn-ghost" onclick="openLectura()" title="Con qué se leen los escaneos sin texto: lector local o Azure Document Intelligence">⚙️ Lectura de escaneos</button>
+            {% endif %}
+            <button class="btn btn-primary" onclick="openActualizar()">🔄 Actualizar</button>
+            <a class="btn btn-primary" id="bajarInfoBtn" href="/api/export/todo.xlsx" onclick="onBajarInfoClick(event)" style="text-decoration:none;">⬇️ Bajar información</a>
+            {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+            <button class="btn btn-ghost" onclick="openOsModal()">📦 Orden de Servicio</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PENDING PROCESS VIEW -->
+    <!-- SUB-TARJETAS: al entrar a un subproceso que se divide en dos
+         (Personas Jurídicas / Naturales, o Bienes / Servicios) -->
+    <section class="view" id="view-subcards">
+      <div class="table-head-bar">
+        <h2 id="subcardsTitulo">Subproceso</h2>
+        <span class="pill pill-ready tag" id="subcardsTag"></span>
+      </div>
+      <div class="table-sub-note" id="subcardsNota"></div>
+      <div class="card-grid" id="subcardsGrid"></div>
+    </section>
+
+    <!-- TABLA DE UN SUBPROCESO: las columnas cambian según cuál sea -->
+    <section class="view" id="view-subproceso">
+      <div class="table-head-bar">
+        <h2 id="spTitulo">Subproceso</h2>
+        <span class="pill pill-ready tag" id="spTag"></span>
+      </div>
+      <div class="table-sub-note" id="spNota"></div>
+
+      <div class="filters">
+        <div class="field">
+          <label for="spAnio">Año</label>
+          <select id="spAnio" onchange="cargarTablaSubproceso(1)"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <label for="spBuscar">Buscar por RUC, proveedor o N°</label>
+          <input id="spBuscar" type="text" placeholder="Ej.: 10457509796" oninput="buscarSubprocesoConEspera()">
+        </div>
+        <div class="field">
+          <label>Ordenar</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" id="spOrdDocs" onclick="ordenarSubproceso('documentos')" title="Orden por defecto: arriba las órdenes que ya tienen TDR, requerimiento, orden o conformidad cortada, y entre ellas las más recientes">📎 Con documentos primero (por defecto)</button>
+            <button class="btn btn-outline btn-sm" onclick="ordenarSubproceso('asc')">↑ Monto</button>
+            <button class="btn btn-outline btn-sm" onclick="ordenarSubproceso('desc')">↓ Monto</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="spSoloDocs">Mostrar</label>
+          <label class="check-label">
+            <input type="checkbox" id="spSoloDocs" onchange="cargarTablaSubproceso(1)" style="width:16px;height:16px;">
+            Solo las que ya tienen documentos
+          </label>
+          <label id="spSoloRiesgoCampo" class="check-label" style="display:none;margin-top:6px;">
+            <input type="checkbox" id="spSoloRiesgo" onchange="cargarTablaSubproceso(1)" style="width:16px;height:16px;">
+            Solo las que tienen riesgos abiertos
+          </label>
+        </div>
+        <button class="btn btn-outline btn-sm reset" onclick="limpiarFiltrosSubproceso()">Limpiar filtros</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="spCabecera"></tr></thead>
+          <tbody id="spCuerpo"><tr><td class="loading-note">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager" id="spPaginador"></div>
+    </section>
+
+    <!-- OBRAS VIEW -->
+    <section class="view" id="view-obras">
+      <div class="table-head-bar">
+        <h2>Procesos de selección (Obras)</h2>
+        <span class="pill pill-ready tag" id="obrasTag">Obras</span>
+      </div>
+      <div class="table-sub-note">Procedimientos de Selección de SEACE filtrados a Obra / Consultoría de Obra (por la columna "Objeto de Contratación"). Se cargan subiendo el Excel del botón "Exportar a Excel" del Buscador de Condiciones de Contratación de SEACE; las Bases Integradas de cada proceso se adjuntan con «⬆ Subir bases».</div>
+
+      <div class="filters">
+        <div class="field">
+          <label for="obYear">Año</label>
+          <select id="obYear" onchange="renderObrasTable()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm reset" onclick="loadObrasTable()">🔄 Refrescar</button>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('procesosFile').click()">📗 Subir Excel de SEACE</button>
+        <input type="file" id="procesosFile" accept=".xls,.xlsx" style="display:none" onchange="subirExcelProcesos(this)">
+      </div>
+      <p id="obrasResumenNote" style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">Cargando resumen…</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Entidad</th><th>Fecha</th><th>Nomenclatura</th><th>Objeto</th>
+              <th>Descripción</th><th>Monto</th><th>Bases Integradas</th>
+            </tr>
+          </thead>
+          <tbody id="obrasTableBody"><tr><td colspan="7" class="loading-note">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- BIENES Y SERVICIOS (CONVOCATORIA) VIEW -->
+    <section class="view" id="view-bienes-conv">
+      <div class="table-head-bar">
+        <h2>Procesos de selección (Bienes y servicios)</h2>
+        <span class="pill pill-ready tag">Bienes y servicios</span>
+      </div>
+      <div class="table-sub-note">Filas del mismo Buscador de Condiciones de Contratación de SEACE que NO son de obra (Bien / Servicio). Salen del MISMO Excel que Obras, separado en dos por la columna "Objeto de Contratación": lo que no es Obra ni Consultoría de Obra cae acá. Sube el Excel desde cualquiera de las dos pantallas y las dos se llenan.</div>
+
+      <div class="filters">
+        <div class="field">
+          <label for="bcYear">Año</label>
+          <select id="bcYear" onchange="renderBienesConvTable()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm reset" onclick="loadBienesConvTable()">🔄 Refrescar</button>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('procesosFile2').click()">📗 Subir Excel de SEACE</button>
+        <input type="file" id="procesosFile2" accept=".xls,.xlsx" style="display:none" onchange="subirExcelProcesos(this)">
+      </div>
+      <p id="bcResumenNote" style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">Cargando resumen…</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Entidad</th><th>Fecha</th><th>Nomenclatura</th><th>Objeto</th>
+              <th>Descripción</th><th>Monto</th>
+            </tr>
+          </thead>
+          <tbody id="bcTableBody"><tr><td colspan="6" class="loading-note">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TABLE VIEW -->
+    <section class="view" id="view-table">
+      <div class="table-head-bar">
+        <h2 id="tableTitle">Proceso</h2>
+        <span class="pill pill-ready tag" id="tableTag">Empresas</span>
+      </div>
+      <div class="table-sub-note" id="tableSubNote"></div>
+
+      <div class="filters">
+        <div class="field">
+          <label for="fYear">Año</label>
+          <select id="fYear" onchange="renderTable(true)">
+            <option value="">Todos</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fRuc">Buscar por RUC</label>
+          <input id="fRuc" type="text" inputmode="numeric" placeholder="Ej. 2061..." oninput="debouncedRender()">
+        </div>
+        <div class="field">
+          <label>Ordenar por monto</label>
+          <div class="sort-toggle">
+            <button class="sort-btn" id="sortAsc" onclick="setSort('asc')">↑ Ascendente</button>
+            <button class="sort-btn" id="sortDesc" onclick="setSort('desc')">↓ Descendente</button>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm reset" onclick="resetFilters()">Limpiar filtros</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Orden</th><th>RUC</th><th>Proveedor</th><th>Fecha emisión</th>
+              <th>Tipo de contratación</th><th>Monto</th>
+              <th>Requerimiento</th><th>TDR</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"><tr><td colspan="8" class="loading-note">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <div id="pagerInfo">—</div>
+        <div class="pager-btns">
+          <button id="pagerFirst" onclick="goToPage(1)">« Primera</button>
+          <button id="pagerPrev" onclick="goToPage(state.page-1)">‹ Anterior</button>
+          <span class="page-ind" id="pagerPage">1 / 1</span>
+          <button id="pagerNext" onclick="goToPage(state.page+1)">Siguiente ›</button>
+          <button id="pagerLast" onclick="goToPage(state.pages)">Última »</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">Gestión de Logística · Oficina de Logística — Dependencia Encargada de las Contrataciones</footer>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<script>
+  /* Corregir una orden (observaciones, monto, estado) es del administrador y
+     del jefe de Logística. El servidor lo vuelve a comprobar igual: esto es
+     solo para no enseñar un botón que va a dar 403. */
+  window.PUEDE_EDITAR = {{ 'true' if current_user and current_user.role in ['admin', 'jefe_logistica'] else 'false' }};
+</script>
+
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <button class="icon-btn close" onclick="closeDrawer()" aria-label="Cerrar">✕</button>
+    <div class="eyebrow" id="drawerEyebrow">Registro</div>
+    <h3 id="drawerTitle">Proveedor</h3>
+  </div>
+  <div class="drawer-body">
+    <dl class="kv" id="drawerKv"></dl>
+    <div class="action-list">
+      <button id="actReq" onclick="setDrawerTab('requerimiento')">📄 Ver requerimiento</button>
+      <button id="actOs" onclick="setDrawerTab('os')">📦 Ver OS</button>
+      <button id="actTdr" onclick="setDrawerTab('tdr')">📋 Ver TDR</button>
+      <button id="actPago" onclick="setDrawerTab('pago')">💳 Ver pago</button>
+      <button id="actConf" onclick="setDrawerTab('conformidad')">✅ Ver conformidad</button>
+      <button id="actEstados" onclick="setDrawerTab('estados')">🕘 Ver estados</button>
+      {% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+      <button id="actEditar" onclick="setDrawerTab('editar')" style="grid-column: 1 / -1;">✏️ Editar registro</button>
+      {% endif %}
+    </div>
+    <div id="drawerTabContent"></div>
+  </div>
+</aside>
+
+<div class="modal-scrim" id="crearExcelModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Subir Excel de SEACE</h3><p>Sube el Excel tal como te lo entrega SEACE (<strong>.xls o .xlsx</strong>), de un mes o de un año entero. Gestión de Logística detecta sola el año y el mes — por el nombre (<em>2024-1.xls</em>) o, si lo bajaste sin renombrar, por las fechas que trae adentro — y lo va uniendo todo en un solo archivo por año, sin duplicar nada.</p></div>
+      <button class="icon-btn" onclick="closeModal('crearExcelModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div id="excelCargados" style="margin-bottom:18px;"></div>
+
+      <div class="upload-box" style="text-align:left;margin-bottom:16px;">
+        <h4 style="margin:0 0 8px;">📄 Un archivo (un mes o un año entero)</h4>
+        <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Elige el archivo tal como te lo dio SEACE (<strong>.xls o .xlsx</strong>). El año y el mes se detectan solos — por el nombre (<em>2024-1.xls</em>) o, si no lo renombraste, por las fechas que trae adentro. Solo escribe el año si el sistema te avisa que no pudo detectarlo.</p>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:start;">
+          <div class="field" style="margin:0;">
+            <label for="ceYear">Año (opcional)</label>
+            <input id="ceYear" type="number" placeholder="se detecta solo" min="2015" max="2030" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+          <div class="field" style="margin:0;">
+            <label class="upload-label" for="ceArchivoAnio">📎 Elegir Excel (.xls o .xlsx)</label>
+            <input id="ceArchivoAnio" type="file" accept=".xlsx,.xls" onchange="onCeFileChange('ceArchivoAnio','ceArchivoAnioNombre')">
+            <div class="upload-filename" id="ceArchivoAnioNombre">Ningún archivo seleccionado</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" id="ceExecBtn" onclick="subirExcelAnio()">⬆️ Subir y procesar</button></div>
+      </div>
+
+      <div class="upload-box" style="text-align:left;">
+        <h4 style="margin:0 0 8px;">🗂️ Varios meses de golpe (ZIP)</h4>
+        <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Mete en un .zip todos los meses que descargaste (<em>2024-1.xls, 2024-2.xls…</em>) y súbelo de una vez. Gestión de Logística ordena los meses, los une en un solo archivo por año y no duplica nada aunque un mes ya estuviera cargado. También acepta un Excel por año.</p>
+        <div class="field" style="margin:0;">
+          <label class="upload-label" for="ceArchivoZip">📎 Elegir archivo .zip</label>
+          <input id="ceArchivoZip" type="file" accept=".zip" onchange="onCeFileChange('ceArchivoZip','ceArchivoZipNombre')">
+          <div class="upload-filename" id="ceArchivoZipNombre">Ningún archivo seleccionado</div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn btn-outline btn-sm" id="ceZipBtn" onclick="subirExcelZip()">⬆️ Subir y procesar todos los años</button></div>
+      </div>
+
+      <div class="os-result" id="ceResult"></div>
+    </div>
+  </div>
+</div>
+
+{% if current_user and current_user.role == 'admin' %}
+<div class="modal-scrim" id="almacenModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>💾 Dónde se guardan los expedientes</h3><p>Los expedientes completos se guardan en Azure Blob Storage, organizados en carpetas por proveedor. Los recortes y las vistas previas se quedan en Gestión de Logística.</p></div>
+      <button class="icon-btn" onclick="closeModal('almacenModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="almacenEstado" style="margin-bottom:14px;"></div>
+      <div class="field" id="almCampoAzure" style="margin-bottom:12px;">
+        <label for="almContenedor">Nombre del contenedor</label>
+        <input id="almContenedor" type="text" value="expedientes" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+      </div>
+      <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="guardarAlmacen()">Guardar</button></div>
+      <div class="os-result" id="almacenResult"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="modal-scrim" id="actualizarModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Actualizar</h3><p>Vuelve a leer el Excel maestro y agrega solo lo nuevo — nunca duplica ni reinicia el progreso ya cargado (Requerimiento/TDR).</p></div>
+      <button class="icon-btn" onclick="closeModal('actualizarModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <button class="btn btn-primary" onclick="runActualizar()" id="actualizarBtn">🔄 Ejecutar actualización</button>
+      <div id="actualizarResult"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-scrim" id="osModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Orden de Servicio — información</h3><p>Separa cada OS "gigante" en Requerimiento, TDR, Comprobante de Pago y Conformidad, guarda todo en carpetas reales y actualiza los Sí/No.</p></div>
+      <button class="icon-btn" onclick="closeModal('osModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-box">
+        <label class="upload-label" for="osZipInput">📎 Elegir ZIP de Órdenes de Servicio (OCR)</label>
+        <input type="file" id="osZipInput" accept=".zip" onchange="onOsFileChange()">
+        <div class="upload-filename" id="osFileName">Ningún archivo seleccionado</div>
+        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" id="osExecBtn" disabled onclick="runOsModule()">▶️ Ejecutar</button></div>
+      </div>
+      <div class="os-result" id="osResult"></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:14px;">Dónde empieza y dónde termina cada sección (largos fijos, como los dio la oficina):</p>
+      <ul class="check-list">
+        <li><strong>TDR / Especificaciones Técnicas — 6 hojas exactas.</strong> Empieza en la hoja que lleva el título y se lleva 6 hojas, ni una más ni una menos.</li>
+        <li><strong>Requerimiento — 1 hoja, siempre.</strong></li>
+        <li><strong>Orden de Servicio / de Compra — la primera hoja.</strong> Aparte se guarda el expediente entero tal como se entregó, sin tocarle ni un byte.</li>
+        <li><strong>Comprobante de Pago o Recibo por Honorarios — 1 hoja cada uno, y hasta 3</strong> (un mismo servicio se suele pagar en varias armadas): salen como Comprobante_de_Pago.pdf, _2 y _3.</li>
+        <li><strong>Conformidad — 1 hoja.</strong></li>
+        <li><strong>Entregable / informe del proveedor</strong> y <strong>Contrato de locación</strong>: no tienen largo fijo — se recortan hasta que empieza el documento siguiente.</li>
+        <li>El TDR también se titula <strong>«Término de Referencia» en singular</strong> en los expedientes de consultoría, y ahí son 4 hojas, no 6.</li>
+        <li>El pago puede ser una <strong>factura o recibo (1 hoja)</strong> o el <strong>paquete de Tesorería</strong> —constancia de transferencia, nota de pago del SIAF y constancia de depósito— que son varias seguidas.</li>
+        <li>Se cuentan <strong>hojas de papel, no páginas del PDF</strong>: el reverso en blanco del escaneo a doble cara va con su sección pero no gasta cupo.</li>
+        <li>Si una sección sale con menos hojas de las que le tocan, el resultado lo avisa en rojo en vez de guardarlo callado.</li>
+        <li>El RUC y el proveedor se leen de cualquier página; el N° de orden se toma <strong>primero del nombre del archivo</strong> ("OS 14709-2026.pdf") y se cruza con Empresas/Locadores para marcar los Sí/No.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if current_user and current_user.role == 'admin' %}
+<div class="modal-scrim" id="usersModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Usuarios</h3><p>Cuentas que pueden entrar a Gestión de Logística. Solo un administrador puede crear o borrar cuentas.</p></div>
+      <button class="icon-btn" onclick="closeModal('usersModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-box" style="text-align:left;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="field" style="margin:0;">
+            <label for="nuUsername">Usuario</label>
+            <input id="nuUsername" type="text" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+          <div class="field" style="margin:0;">
+            <label for="nuPassword">Contraseña</label>
+            <input id="nuPassword" type="password" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+          <div class="field" style="margin:0;">
+            <label for="nuRole">Rol</label>
+            <select id="nuRole" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+              <option value="empleado_logistica">Empleado (Logística)</option>
+              <option value="jefe_logistica">Jefe de Logística</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin:12px 0 0;" id="nuRamaCampo">
+          <label for="nuRama">¿En qué trabaja? (solo para empleados)</label>
+          <select id="nuRama" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+            {% for r in ramas %}<option value="{{ r.id }}">{{ r.nombre }}</option>{% endfor %}
+          </select>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Gestión de Logística le abre solo la pantalla de esa rama — no ve las demás.</div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="createUser()">➕ Crear usuario</button></div>
+      </div>
+      <details class="guide-box" style="margin:16px 0 0;">
+        <summary>🔐 Clave de administrador (la de la entrada escondida)</summary>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px;">
+          Para volver a entrar como administrador: en la pantalla de ingreso haz <strong>doble clic en el logo "GL"</strong>, o toca el <strong>candado 🔒</strong> de la esquina inferior derecha. Ahí se pide usuario, contraseña y esta clave.
+          Si la dejas vacía, esa entrada pedirá solo usuario y contraseña — así nunca te quedas afuera.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;">
+          <div class="field" style="margin:0;">
+            <label for="claveAdmin">Nueva clave (vacío = quitarla)</label>
+            <input id="claveAdmin" type="password" placeholder="mínimo 4 caracteres" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="guardarClaveAdmin()">Guardar</button>
+        </div>
+        <div id="claveAdminEstado" style="font-size:12.5px;color:var(--text-muted);margin-top:8px;"></div>
+      </details>
+      <div id="usersResult" style="margin-top:14px;"></div>
+      <div id="usersList" class="table-wrap" style="margin-top:10px;box-shadow:none;border:none;"></div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+{% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+<div class="modal-scrim" id="municipalidadesModal">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div><h3>Municipalidades</h3><p>Personal activo para municipalidades con datos incluidos.</p></div>
+      <button class="icon-btn" onclick="closeModal('municipalidadesModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-box" style="text-align:left;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="field" style="margin:0;"><label>RUC</label><input id="nmRuc" placeholder="20131369558"></div>
+          <div class="field" style="margin:0;grid-column:span 2;"><label>Nombre de la municipalidad/entidad</label><input id="nmNombre" placeholder="Municipalidad Provincial de..."></div>
+          <div class="field" style="margin:0;"><label>Sigla</label><input id="nmSigla" placeholder="Ej. MPC"></div>
+          <div class="field" style="margin:0;"><label>Correo</label><input id="nmCorreo" placeholder="mesadepartes@..."></div>
+          <div class="field" style="margin:0;"><label>Área que solicita</label><input id="nmArea" placeholder="Gerencia Municipal"></div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="guardarMunicipalidad()">💾 Guardar municipalidad</button></div>
+        <div id="nmResult" style="margin-top:10px;"></div>
+      </div>
+      <div class="upload-box" style="text-align:left;margin-top:12px;">
+        <strong style="font-size:13px;">📇 Directorio de funcionarios (gobiernos regionales + Callao)</strong>
+        <div style="height:8px;"></div>
+        <button class="btn btn-outline btn-sm" onclick="aplicarDirectorioFuncionarios()">🔄 Aplicar directorio de funcionarios</button>
+        <div id="dirFuncResult" style="margin-top:8px;"></div>
+      </div>
+      <div id="municipalidadesList" style="margin-top:16px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-scrim" id="activityModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Actividad</h3><p>Registro detallado de cada persona.</p></div>
+      <button class="icon-btn" onclick="closeModal('activityModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="activityList" class="loading-note">Cargando…</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user and current_user.role in ['admin', 'jefe_logistica'] %}
+<!-- RIESGOS: el detalle de un expediente -->
+<div class="modal-scrim" id="riesgoModal">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <div><h3 id="rzTitulo">Riesgos del expediente</h3><p id="rzSub">Clasificación riesgo por riesgo según la matriz de la oficina.</p></div>
+      <button class="icon-btn" onclick="closeModal('riesgoModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body" id="rzCuerpo"><div class="loading-note">Cargando…</div></div>
+  </div>
+</div>
+
+<!-- RIESGOS: el tablero general -->
+<div class="modal-scrim" id="riesgosTableroModal">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <div><h3>⚠️ Riesgos</h3><p>Lo detectado en los expedientes cortados de Contratos Menores, Locadores y Selección, y cómo va su atención.</p></div>
+      <button class="icon-btn" onclick="closeModal('riesgosTableroModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="rtKpis" class="kpi-row" style="margin-top:0;"></div>
+      <div class="filters" style="margin-top:16px;">
+        <div class="field"><label for="rtEstado">Seguimiento</label>
+          <select id="rtEstado" onchange="cargarHallazgos()">
+            <option value="abiertos">Abiertos (pendientes y en atención)</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="en_atencion">En atención</option>
+            <option value="subsanado">Subsanados</option>
+            <option value="descartado">Descartados</option>
+            <option value="todos">Todos</option>
+          </select></div>
+        <div class="field"><label for="rtClasif">Clasificación</label>
+          <select id="rtClasif" onchange="cargarHallazgos()">
+            <option value="">Confirmados y por revisar</option>
+            <option value="riesgo">Solo confirmados</option>
+            <option value="revisar">Solo por revisar</option>
+          </select></div>
+        <div class="field"><label for="rtFamilia">Subproceso</label>
+          <select id="rtFamilia" onchange="cargarHallazgos()">
+            <option value="">Todos</option>
+            <option value="CM">Contratos Menores</option>
+            <option value="LS">Locadores</option>
+            <option value="PS">Selección</option>
+          </select></div>
+        <div class="field"><label for="rtResp">Responsable</label>
+          <input id="rtResp" type="text" placeholder="Nombre o cargo" oninput="cargarHallazgosConEspera()"></div>
+        <div class="field"><label for="rtBuscar">Buscar</label>
+          <input id="rtBuscar" type="text" placeholder="N° de orden, proveedor, RUC o riesgo" oninput="cargarHallazgosConEspera()"></div>
+        <a class="btn btn-outline btn-sm" id="rtExcel" href="/api/riesgos/excel" style="text-decoration:none;align-self:flex-end;">⬇️ Excel</a>
+      </div>
+      <div id="rtLista" class="loading-note">Cargando…</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user and current_user.role == 'admin' %}
+<!-- LECTURA DE ESCANEOS -->
+<div class="modal-scrim" id="lecturaModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>⚙️ Lectura de escaneos</h3><p>Con qué se leen las hojas que llegan sin texto. El texto que ya trae el PDF se usa siempre, gratis.</p></div>
+      <button class="icon-btn" onclick="closeModal('lecturaModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="lecEstado" class="loading-note">Cargando…</div>
+      <label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;margin:16px 0 6px;">
+        <input type="checkbox" id="lecAzure" style="width:18px;height:18px;"> Usar Azure Document Intelligence
+      </label>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Modelo Read: US$ 1.50 por cada 1,000 páginas. Las hojas en blanco (reversos) no se envían.</div>
+      <div class="field" style="margin-bottom:12px;">
+        <label for="lecTope">Tope de páginas por mes</label>
+        <input id="lecTope" type="number" min="0" step="500" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="guardarLectura()">Guardar</button>
+      <div id="lecResult"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user and current_user.role == 'jefe_logistica' %}
+<div class="modal-scrim" id="equipoModal">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div><h3>Mi equipo</h3><p>Crea usuarios y contraseñas para los empleados de tu área (Logística) y revisa quién está conectado ahora. Solo ves y gestionas tu propio equipo -no otras áreas ni cuentas de administrador.</p></div>
+      <button class="icon-btn" onclick="closeModal('equipoModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-box" style="text-align:left;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field" style="margin:0;">
+            <label for="eqUsername">Usuario</label>
+            <input id="eqUsername" type="text" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+          <div class="field" style="margin:0;">
+            <label for="eqPassword">Contraseña</label>
+            <input id="eqPassword" type="password" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+          </div>
+        </div>
+        <div class="err-note" style="background:var(--amber-tint);color:#7a4f04;margin:0 0 14px;">
+          ℹ️ <span>Aquí se crean <strong>trabajadores</strong> (los que solo suben su información). Una cuenta de <strong>jefatura</strong> la crea el administrador desde "Usuarios".</span>
+        </div>
+        <div class="field" style="margin:12px 0 0;">
+          <label for="eqRama">¿En qué trabaja?</label>
+          <select id="eqRama" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+            {% for r in ramas %}<option value="{{ r.id }}">{{ r.nombre }}</option>{% endfor %}
+          </select>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Al entrar, esa persona ve únicamente la pantalla de la rama que elijas aquí.</div>
+        </div>
+        <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" onclick="crearEmpleado()">➕ Crear empleado</button></div>
+      </div>
+      <div id="equipoResult" style="margin-top:14px;"></div>
+      <div id="equipoList" class="table-wrap" style="margin-top:10px;box-shadow:none;border:none;"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user and current_user.role == 'admin' %}
+<div class="modal-scrim" id="verificacionModal">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <div>
+        <h3>Verificación posterior</h3>
+        <p>El plazo es de <strong>10 días hábiles</strong> desde que se sube el expediente (se cuenta desde el día siguiente, sin sábados, domingos ni feriados). Cuando quedan <strong>2 días o menos</strong> aparece en rojo: ahí toca el seguimiento completo.</p>
+      </div>
+      <button class="icon-btn" onclick="closeModal('verificacionModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="vpResumen" class="kpi-row" style="margin-top:0;"></div>
+
+      <details class="guide-box" style="margin:16px 0 10px;">
+        <summary>➕ Registrar un expediente a mano</summary>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px;">Úsalo solo si el expediente no entró por "Subir OS" o si el escaneo salió tan borroso que no se pudo leer nada. El plazo empieza a contar desde hoy.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+          <div class="field"><label for="vpNumero">N° de Orden de Servicio</label><input id="vpNumero" type="text" placeholder="13351-2026"></div>
+          <div class="field"><label for="vpProveedor">Proveedor</label><input id="vpProveedor" type="text" placeholder="CHUCOS CHAVEZ JOEL"></div>
+          <div class="field"><label for="vpRuc">RUC</label><input id="vpRuc" type="text" placeholder="10457509796"></div>
+          <div class="field"><label for="vpMonto">Monto (S/)</label><input id="vpMonto" type="number" step="0.01" placeholder="12000.00"></div>
+        </div>
+        <div style="margin-top:12px;"><button class="btn btn-primary btn-sm" id="vpCrearBtn" onclick="crearVerificacion()">➕ Registrar</button></div>
+      </details>
+
+      <div id="vpResult"></div>
+      <div id="vpList" class="loading-note">Cargando…</div>
+    </div>
+  </div>
+</div>
+
+<!-- BANDEJA: lo que dejaron los trabajadores, sin cortar. Solo administrador. -->
+<div class="modal-scrim" id="bandejaModal">
+  <div class="modal modal-xl">
+    <div class="modal-head">
+      <div>
+        <h3>Bandeja de entrada</h3>
+        <p>Lo que los trabajadores dejaron, <strong>tal cual lo escanearon</strong>.</p>
+      </div>
+      <button class="icon-btn" onclick="closeModal('bandejaModal')" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <details class="guide-box" id="bandejaConfigBox" style="margin:0 0 16px;">
+        <summary>📁 Dónde se guardan los archivos</summary>
+        <div id="bandejaConfigEstado" style="font-size:12.5px;color:var(--text-muted);"></div>
+        <div id="bandejaCarpetaLocal" style="display:none;margin-top:12px;">
+          <div class="field" style="margin:0;">
+            <label for="bandejaRuta">Carpeta base en este equipo</label>
+            <input id="bandejaRuta" type="text" placeholder="Vacío = la carpeta de Gestión de Logística" oninput="this.dataset.tocado='1'" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);background:var(--surface);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;">
+          </div>
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="guardarCarpetaBandeja()">💾 Guardar carpeta</button>
+            <button class="btn btn-outline btn-sm" onclick="abrirCarpetaBandeja('')">📂 Abrir en el explorador</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="guide-box" id="bandejaSubirBox" style="margin:0 0 16px;" open>
+        <summary>📤 Subir tu versión con OCR</summary>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px;">
+          Esto es <strong>solo para ti</strong>. Los trabajadores entregan el escaneado tal cual; tú lo bajas,
+          le pasas tu herramienta de OCR y lo vuelves a subir aquí. Si el archivo se llama igual que el que
+          entregó el trabajador, <strong>el tuyo pasa a ser el original</strong> y el suyo se aparta a la
+          carpeta <span class="mono">_Reemplazados</span> (no se borra: si te equivocas de expediente, lo
+          recuperas de ahí).
+        </p>
+        <div class="field" style="margin:0 0 10px;">
+          <label for="admSubirRama">Módulo — a qué subproceso pertenece</label>
+          <select id="admSubirRama" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+            <option value="">Elige el subproceso…</option>
+          </select>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Decide en qué carpeta cae: <span class="mono">&lt;subproceso&gt;/&lt;tu usuario&gt;/</span></div>
+        </div>
+        <div class="field" style="margin:0 0 10px;">
+          <label for="admSubirArchivo">Expediente ya pasado por OCR</label>
+          <input type="file" id="admSubirArchivo" accept=".pdf,.zip,.rar,.7z,.jpg,.jpeg,.png,.tif,.tiff" onchange="onAdmSubirCambio()">
+          <div class="upload-filename" id="admSubirNombre">Ningún archivo seleccionado</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px;">
+          <input type="checkbox" id="admSubirOriginal" checked>
+          Tomar el mío como el original y apartar la entrega anterior
+        </label>
+        <button class="btn btn-primary btn-sm" id="admSubirBtn" disabled onclick="subirComoOriginal()">⬆️ Subir</button>
+        <div id="admSubirResult" style="margin-top:10px;"></div>
+      </details>
+
+      <div id="bandejaResumen" class="kpi-row" style="margin-top:0;"></div>
+      <div id="bandejaResult"></div>
+      <div id="bandejaList" class="loading-note">Cargando…</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="toast-stack" id="toastStack"></div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

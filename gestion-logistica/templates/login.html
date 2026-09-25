@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ingresar — Gestión de Logística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
+<style>
+  .area-card { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:14px 16px; border-radius:12px; border:1.5px solid var(--border-soft); background:var(--card); cursor:pointer; transition:border-color .15s, background .15s, transform .1s; }
+  .area-card:hover:not([disabled]) { border-color:var(--accent); background:var(--teal-tint); transform:translateY(-1px); }
+  .area-card:active:not([disabled]) { transform:scale(.98); }
+  .area-card[disabled] { cursor:not-allowed; background:var(--card-alt); }
+  .area-card[disabled] .txt strong { color:var(--text-muted); }
+  .area-card .ico { font-size:19px; width:38px; height:38px; flex:none; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--teal-tint); }
+  .area-card[disabled] .ico { background:var(--border-soft); filter:grayscale(1); opacity:.7; }
+  .area-card .txt { display:flex; flex-direction:column; gap:2px; }
+  .area-card .txt strong { font-size:14px; color:var(--text); font-weight:700; }
+  .area-card .txt span { font-size:12px; color:var(--text-muted); font-weight:500; }
+  .area-card .soon-pill { margin-left:auto; flex:none; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text-muted); background:var(--border-soft); padding:3px 9px; border-radius:999px; }
+  .step-back { background:none; border:none; color:var(--accent-deep); font-size:13px; font-weight:600; cursor:pointer; padding:0; margin-bottom:10px; text-align:left; }
+  .step-back:hover { color:var(--text); text-decoration:underline; }
+  .breadcrumb-tag { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--teal-deep); background:var(--teal-tint); border-radius:999px; padding:5px 12px; margin-bottom:14px; }
+  .masthead-mark { cursor:pointer; user-select:none; }
+  .candado-admin { position:absolute; right:14px; bottom:12px; background:none; border:none; cursor:pointer;
+    font-size:14px; opacity:.25; padding:6px; line-height:1; transition:opacity .15s; }
+  .candado-admin:hover { opacity:.9; }
+  .aviso-admin { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+  .login-step { display:none; }
+  .login-step.active { display:flex; flex-direction:column; gap:12px; }
+</style>
+</head>
+<body class="gl-login">
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+  <div class="login-card" style="max-width:400px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+      <div class="masthead-mark">GL</div>
+      <div>
+        <div class="masthead-eyebrow" style="color:var(--text-muted);">Gestión de Logística</div>
+        <h1 style="font-size:22px; color:var(--text);">Ingresar</h1>
+      </div>
+    </div>
+    {% if error %}
+    <div class="err-note">⚠️ <span>{{ error }}</span></div>
+    {% endif %}
+
+    <!-- Paso 1: área -->
+    <div id="stepArea" class="login-step active">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">¿A qué área perteneces?</div>
+      <button type="button" class="area-card" onclick="elegirArea('logistica', 'Logística')">
+        <span class="ico">📦</span>
+        <span class="txt"><strong>Logística</strong><span>Compras, obras, contrataciones</span></span>
+      </button>
+      <button type="button" class="area-card" disabled title="Todavía no disponible">
+        <span class="ico">🏛️</span>
+        <span class="txt"><strong>Gerencia de Administración</strong></span>
+        <span class="soon-pill">Próximamente</span>
+      </button>
+      <button type="button" class="area-card" disabled title="Todavía no disponible">
+        <span class="ico">🏙️</span>
+        <span class="txt"><strong>Gerencia Municipal</strong></span>
+        <span class="soon-pill">Próximamente</span>
+      </button>
+    </div>
+
+    <!-- Paso 2: cargo (solo Logística por ahora) -->
+    <div id="stepCargo" class="login-step">
+      <button type="button" class="step-back" onclick="volverA('stepArea')">‹ Volver</button>
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">¿Cuál es tu cargo en Logística?</div>
+      <button type="button" class="area-card" onclick="elegirCargo('Jefe de Logística')" style="--tab:var(--amber-tint);">
+        <span class="ico" style="background:var(--amber-tint);">🗝️</span>
+        <span class="txt"><strong>Jefe de Logística</strong><span>Administra usuarios de su área</span></span>
+      </button>
+      <button type="button" class="area-card" onclick="elegirCargo('Encargado de Documentos')">
+        <span class="ico">📄</span>
+        <span class="txt"><strong>Encargado(a)</strong><span>Documentos, obras, contrataciones u otro</span></span>
+      </button>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Esto solo ayuda a identificarte — no cambia lo que puedes ver o hacer en el sistema.</div>
+    </div>
+
+    <!-- Paso 3: usuario y contraseña -->
+    <div id="stepLogin" class="login-step">
+      <button type="button" class="step-back" onclick="volverA('stepCargo', true)">‹ Volver</button>
+      <div id="breadcrumbTag" class="breadcrumb-tag"></div>
+      <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+        <input type="hidden" name="cargo_declarado" id="cargoDeclarado" value="">
+        <div class="field">
+          <label for="username">Usuario</label>
+          <input id="username" name="username" type="text" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary" type="submit" style="justify-content:center; margin-top:6px;">Ingresar</button>
+      </form>
+    </div>
+
+    <!-- Paso escondido: entrada de administrador. No se ve hasta que se hace
+         doble clic en el logo "EC" o se toca el candado de la esquina. -->
+    <div id="stepAdmin" class="login-step">
+      <button type="button" class="step-back" onclick="volverA('stepArea')">‹ Volver</button>
+      <div class="breadcrumb-tag" style="background:var(--amber-tint);color:#7a4f04;">🔐 Entrada de administrador</div>
+      <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+        <input type="hidden" name="modo" value="admin">
+        <div class="field">
+          <label for="adminUsuario">Usuario</label>
+          <input id="adminUsuario" name="username" type="text" autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="adminPassword">Contraseña</label>
+          <input id="adminPassword" name="password" type="password" autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label for="adminClave">Clave de administrador</label>
+          <input id="adminClave" name="clave_admin" type="password" autocomplete="off">
+          <div class="aviso-admin">{% if hay_clave_admin %}Es la segunda clave que configuraste dentro de Gestión de Logística.{% else %}Todavía no has configurado una: déjala en blanco.{% endif %}</div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="justify-content:center; margin-top:6px;">Entrar como administrador</button>
+      </form>
+    </div>
+
+    <button type="button" class="candado-admin" title="Entrada de administrador" onclick="abrirAdmin()">🔒</button>
+  </div>
+</div>
+<script>
+  var _area = '';
+  var _cargo = '';
+
+  function irA(id) {
+    document.querySelectorAll('.login-step').forEach(function (el) { el.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  function volverA(id, saltarCargoSiNoAplica) {
+    // Si el área elegida no tiene paso de cargo (todavía solo Logística lo
+    // tiene), "Volver" desde el login regresa directo al paso de área.
+    if (saltarCargoSiNoAplica && _area !== 'logistica') {
+      irA('stepArea');
+      return;
+    }
+    irA(id);
+  }
+
+  function elegirArea(area, etiqueta) {
+    _area = area;
+    if (area === 'logistica') {
+      irA('stepCargo');
+    } else {
+      // Reservado para cuando existan Gerencia de Administración / Municipal.
+      irA('stepLogin');
+      actualizarBreadcrumb(etiqueta, '');
+    }
+  }
+
+  function elegirCargo(cargo) {
+    _cargo = cargo;
+    document.getElementById('cargoDeclarado').value = cargo;
+    actualizarBreadcrumb('Logística', cargo);
+    irA('stepLogin');
+    document.getElementById('username').focus();
+  }
+
+  function actualizarBreadcrumb(area, cargo) {
+    var tag = document.getElementById('breadcrumbTag');
+    tag.textContent = cargo ? (area + ' · ' + cargo) : area;
+  }
+
+  function abrirAdmin() {
+    irA('stepAdmin');
+    var u = document.getElementById('adminUsuario');
+    if (u) u.focus();
+  }
+  window.abrirAdmin = abrirAdmin;
+
+  // Doble clic en el logo "EC" -> entrada de administrador (el atajo
+  // discreto, sin que aparezca nada escrito en la pantalla).
+  var marca = document.querySelector('.masthead-mark');
+  if (marca) marca.addEventListener('dblclick', abrirAdmin);
+
+  {% if abrir_admin %}
+  irA('stepAdmin');
+  {% elif error %}
+  // Si hubo un error de usuario/contraseña, quedarse en el paso de login en
+  // vez de reiniciar todo el flujo desde el paso de área.
+  irA('stepLogin');
+  {% endif %}
+</script>
+</body>
+</html>

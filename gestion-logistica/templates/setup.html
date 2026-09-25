@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crear cuenta de administrador — Gestión de Logística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
+</head>
+<body class="gl-login">
+<div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
+  <div class="login-card" style="max-width:420px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+      <div class="masthead-mark">GL</div>
+      <div>
+        <div class="masthead-eyebrow" style="color:var(--text-muted);">Primer uso</div>
+        <h1 style="font-size:20px; color:var(--text);">Crear la cuenta de administrador</h1>
+      </div>
+    </div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:18px;">
+      Todavía no hay ninguna cuenta creada en esta instalación. La primera que
+      crees acá será administradora — desde ella podrás agregar cuentas para
+      tus colegas y ver la actividad de todos.
+    </p>
+    {% if error %}
+    <div class="err-note">⚠️ <span>{{ error }}</span></div>
+    {% endif %}
+    <form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+      <div class="field">
+        <label for="username">Usuario</label>
+        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Contraseña (mínimo 6 caracteres)</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="6">
+      </div>
+      <button class="btn btn-primary" type="submit" style="justify-content:center; margin-top:6px;">Crear cuenta de administrador</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestión de Logística</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='nuevo.css') }}">
+<script src="{{ url_for('static', filename='ui.js') }}"></script>
+<style>
+  .rama-chip { display:inline-flex; align-items:center; gap:9px; padding:12px 18px; border-radius:12px;
+    background:var(--teal-tint); color:var(--teal-deep); font-weight:700; font-size:15px; margin-bottom:22px; }
+  .mis-cargas-item { padding:12px 0; border-top:1px solid var(--border-soft); font-size:13px; display:flex; flex-direction:column; gap:3px; }
+  .mis-cargas-item:first-child { border-top:none; }
+  .mis-cargas-item .t-date { font-family:"IBM Plex Mono"; font-size:11.5px; color:var(--text-muted); }
+  .mis-cargas-item .t-accion { font-weight:600; }
+  .mis-cargas-item .t-detalle { font-size:12px; color:var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="masthead">
+    <div class="masthead-left">
+      <div class="masthead-mark">GL</div>
+      <div style="min-width:0;">
+        <div class="masthead-eyebrow">Oficina de Logística · Dependencia Encargada de las Contrataciones</div>
+        <h1>Gestión de Logística</h1>
+        <div class="sub">Sube tu información — no necesitas nada más para tu trabajo diario</div>
+      </div>
+    </div>
+    <div class="masthead-right">
+      <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema claro/oscuro">🌓 Tema</button>
+      {% if current_user %}
+      <span class="back-btn" style="cursor:default;">{{ current_user.username }} · Logística</span>
+      <a class="back-btn" href="{{ url_for('logout') }}" style="text-decoration:none;">Salir</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <main style="max-width: 760px;">
+    <div class="section-label">Tu trabajo</div>
+    <div class="rama-chip">📁 {{ rama.nombre }}</div>
+
+    {% if rama.sube == 'excel' %}
+    <!-- Ramas que trabajan con el Excel de SEACE. La app separa sola por RUC
+         lo que corresponde, así que no hay nada más que elegir aquí. -->
+    <div class="upload-box" style="text-align:left;margin-bottom:16px;">
+      <h4 style="margin:0 0 8px;">📄 Un año a la vez</h4>
+      <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Elige el año y sube el Excel que descargaste de SEACE (puede tener un mes por hoja, o ya venir unido).</p>
+      <div style="display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:start;">
+        <div class="field" style="margin:0;">
+          <label for="empYear">Año</label>
+          <input id="empYear" type="number" value="2026" min="2015" max="2030" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);">
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="upload-label" for="empArchivoAnio">📎 Elegir Excel (.xlsx)</label>
+          <input id="empArchivoAnio" type="file" accept=".xlsx" onchange="onEmpFileChange('empArchivoAnio','empArchivoAnioNombre')">
+          <div class="upload-filename" id="empArchivoAnioNombre">Ningún archivo seleccionado</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" id="empExecBtn" onclick="subirExcelAnioEmp()">⬆️ Subir y procesar este año</button></div>
+    </div>
+
+    <div class="upload-box" style="text-align:left;margin-bottom:22px;">
+      <h4 style="margin:0 0 8px;">🗂️ Todos los años en un ZIP</h4>
+      <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Mete un Excel por año (o uno por mes de un mismo año) dentro de un .zip — Gestión de Logística junta todo sola, sin duplicar ni borrar lo ya cargado.</p>
+      <div class="field" style="margin:0;">
+        <label class="upload-label" for="empArchivoZip">📎 Elegir archivo .zip</label>
+        <input id="empArchivoZip" type="file" accept=".zip" onchange="onEmpFileChange('empArchivoZip','empArchivoZipNombre')">
+        <div class="upload-filename" id="empArchivoZipNombre">Ningún archivo seleccionado</div>
+      </div>
+      <div style="margin-top:14px;"><button class="btn btn-outline btn-sm" id="empZipBtn" onclick="subirExcelZipEmp()">⬆️ Subir y procesar todos los años</button></div>
+    </div>
+    <div class="os-result" id="empExcelResult"></div>
+
+    <div class="upload-box" style="text-align:left;">
+      <h4 style="margin:0 0 8px;">📑 Entregar expediente escaneado</h4>
+      <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Sube el PDF tal como salió del escáner (o un .zip si son varios). <strong>Tú no cortas nada</strong> — el archivo llega a tu carpeta y el administrador se encarga del resto.</p>
+      <div class="field" style="margin:0 0 12px;">
+        <label for="empBandejaNota">¿A qué corresponde? (opcional)</label>
+        <input id="empBandejaNota" type="text" placeholder="Ej.: OS 13351-2026, o el nombre del proveedor" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);background:var(--surface);color:var(--text);">
+      </div>
+      <label class="upload-label" for="empBandejaArchivo">📎 Elegir archivo</label>
+      <input type="file" id="empBandejaArchivo" accept=".pdf,.zip,.rar,.7z,.jpg,.jpeg,.png,.tif,.tiff" onchange="onEmpBandejaFileChange()">
+      <div class="upload-filename" id="empBandejaFileName">Ningún archivo seleccionado</div>
+      <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" id="empBandejaBtn" disabled onclick="subirBandejaEmp()">⬆️ Entregar</button></div>
+    </div>
+    <div class="os-result" id="empBandejaResult"></div>
+
+    {% else %}
+    <!-- Ramas que solo entregan documentos escaneados. Igual que arriba: el
+         trabajador deja el archivo y el administrador lo corta después. -->
+    <div class="upload-box" style="text-align:left;">
+      <h4 style="margin:0 0 8px;">📑 Entregar documento escaneado</h4>
+      <p style="margin:0 0 12px;color:var(--text-muted);font-size:13px;">Sube el PDF escaneado (o un .zip con varios). Llega a tu carpeta y el administrador lo revisa — <strong>tú no cortas ni procesas nada</strong>.</p>
+      <div class="field" style="margin:0 0 12px;">
+        <label for="empBandejaNota">¿A qué corresponde? (opcional, ayuda a ubicarlo después)</label>
+        <input id="empBandejaNota" type="text" placeholder="Ej.: CP-ABR-11-2026-MPC-CS-1-1, o el nombre del proveedor" style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border-soft);background:var(--surface);color:var(--text);">
+      </div>
+      <label class="upload-label" for="empBandejaArchivo">📎 Elegir archivo</label>
+      <input type="file" id="empBandejaArchivo" accept=".pdf,.zip,.rar,.7z,.jpg,.jpeg,.png,.tif,.tiff" onchange="onEmpBandejaFileChange()">
+      <div class="upload-filename" id="empBandejaFileName">Ningún archivo seleccionado</div>
+      <div style="margin-top:14px;"><button class="btn btn-primary btn-sm" id="empBandejaBtn" disabled onclick="subirBandejaEmp()">⬆️ Entregar</button></div>
+    </div>
+    <div class="os-result" id="empBandejaResult"></div>
+    {% endif %}
+
+    <div class="section-label" style="margin-top:32px;">Lo que he subido</div>
+    <div class="table-wrap" style="padding:6px 16px;">
+      <div id="misCargasList" class="loading-note">Cargando…</div>
+    </div>
+  </main>
+
+  <footer class="app-footer">Gestión de Logística · Oficina de Logística</footer>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+<script src="{{ url_for('static', filename='empleado.js') }}"></script>
+</body>
+</html>
