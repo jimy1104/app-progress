@@ -573,6 +573,8 @@ body.ingreso {
   background: #F3EEF0; overflow-x: hidden; position: relative;
 }
 :root[data-theme="dark"] body.ingreso { background: #0E0F13; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.ingreso { background: #0E0F13; } }
+:root[data-theme="dark"] .ing-onda.o3 { opacity: 0.5; }
 .ing-fondo { position: fixed; inset: 0; pointer-events: none; }
 .ing-onda { position: absolute; border-radius: 50%; }
 .ing-onda.o1 { width: 120vmax; height: 120vmax; left: -62vmax; top: -40vmax; background: conic-gradient(from 200deg, #E1251B, #8E0B1F 30%, transparent 55%); animation: est-gira 60s linear infinite; opacity: 0.95; }
