@@ -198,7 +198,10 @@ def pagina_png(u, jid, n):
     _job_propio(u, jid)
     res = jobs.resultado(jid) or {}
     dim = (res.get("paginas_dim") or {}).get(str(n)) or (res.get("paginas_dim") or {}).get(n)
-    return Response(jobs.pagina_png(jid, n, dim_ocr=dim), mimetype="image/png",
+    giro = None
+    if "paginas_giro" in res:                     # resultados v5: giro explícito por hoja
+        giro = int((res["paginas_giro"] or {}).get(str(n), 0) or 0)
+    return Response(jobs.pagina_png(jid, n, dim_ocr=dim, giro=giro), mimetype="image/png",
                     headers={"Cache-Control": "private, max-age=600"})
 
 @app.get("/api/jobs/<jid>/pagina/<int:n>.pdf")
@@ -213,6 +216,23 @@ def pagina_pdf(u, jid, n):
 def expediente(u, jid):
     _job_propio(u, jid)
     return send_file(jobs.pdf_path(jid), mimetype="application/pdf")
+
+@app.get("/api/jobs/<jid>/buscable.pdf")
+@requiere()
+def expediente_buscable(u, jid):
+    m = _job_propio(u, jid)
+    ruta = jobs.buscable_path(jid)
+    if not os.path.exists(ruta): abort(404)
+    return send_file(ruta, mimetype="application/pdf", as_attachment=True,
+                     download_name=f"{os.path.splitext(m['archivo'])[0]}_buscable.pdf")
+
+@app.get("/api/jobs/<jid>/texto.txt")
+@requiere()
+def expediente_texto(u, jid):
+    m = _job_propio(u, jid)
+    if not os.path.exists(jobs.ocr_path(jid)): abort(404)
+    return Response(jobs.texto(jid), mimetype="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": f"attachment; filename=\"{os.path.splitext(m['archivo'])[0]}_texto.txt\""})
 
 @app.get("/api/jobs/<jid>/corte/<int:i>")
 @requiere()

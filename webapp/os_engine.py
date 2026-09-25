@@ -693,19 +693,6 @@ def segmentar(doc: OCRDocument) -> List[Segmento]:
     return segs
 
 
-def _fusiona_contiguos(segs):
-    """(compatibilidad) Une hojas seguidas del mismo tipo."""
-    out = []
-    for s in segs:
-        if out and s.tipo == out[-1].tipo and s.pagina_ini <= out[-1].pagina_fin + 1 \
-                and not DOCS[s.tipo]["hojas"]:
-            out[-1].pagina_fin = max(out[-1].pagina_fin, s.pagina_fin)
-            out[-1].confianza = round((out[-1].confianza + s.confianza) / 2, 3)
-        else:
-            out.append(s)
-    return out
-
-
 def _recorta_blancos(doc, seg):
     """Quita las hojas en blanco del final (reversos); conserva las intermedias."""
     fin = seg.pagina_fin

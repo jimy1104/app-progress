@@ -9,6 +9,10 @@ from ocr.base import OCRDocument
 
 CACHE = os.path.join(os.path.dirname(__file__), "..", "salida_demo", "ocr_cache.json")
 
+import pytest
+
+
+@pytest.mark.skipif(not os.path.exists(CACHE), reason="falta la caché de OCR del expediente OS 7425")
 def test_tipos_esperados():
     doc = OCRDocument.from_json(CACHE)
     tipos = {s.tipo for s in os_engine.segmentar(doc)}

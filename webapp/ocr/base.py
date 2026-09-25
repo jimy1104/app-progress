@@ -48,6 +48,33 @@ class OCRPage:
     def text(self) -> str:
         return "\n".join(l.text for l in self.lines)
 
+    def girar(self, grados: int) -> "OCRPage":
+        """Lleva las coordenadas al marco DERECHO del texto cuando la hoja se escaneó de
+        costado o de cabeza (giro horario de la imagen). Así el orden de lectura y la
+        «cabecera» (parte de arriba) valen igual que en una hoja normal. El giro queda
+        en meta['giro'] para dibujar la hoja y escribir el PDF buscable."""
+        k = (grados // 90) % 4
+        if not k:
+            return self
+
+        def f(b):
+            x0, y0, x1, y1 = b
+            if k == 1:
+                return (1 - y1, x0, 1 - y0, x1)
+            if k == 2:
+                return (1 - x1, 1 - y1, 1 - x0, 1 - y0)
+            return (y0, 1 - x1, y1, 1 - x0)
+        for ln in self.lines:
+            ln.bbox = f(ln.bbox)
+            for w in ln.words:
+                w.bbox = f(w.bbox)
+        if k in (1, 3):
+            self.width_pt, self.height_pt = self.height_pt, self.width_pt
+        self.lines.sort(key=lambda l: (round(l.bbox[1], 3), l.bbox[0]))
+        self.meta = dict(self.meta or {})
+        self.meta["giro"] = (self.meta.get("giro", 0) + 90 * k) % 360
+        return self
+
     def text_zona(self, top: float = 0.0, bottom: float = 1.0) -> str:
         """Texto de las líneas cuyo centro vertical cae en [top, bottom]
         (fracciones). Útil para leer sólo el encabezado de una hoja."""

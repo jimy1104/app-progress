@@ -108,6 +108,18 @@ class TesseractProvider(OCRProvider):
             c += f' --tessdata-dir "{self.tessdata}"'
         return c
 
+    def _orientacion(self, img) -> int:
+        """Grados (0/90/180/270) que hay que girar la imagen para leerla derecha.
+        Usa el detector de orientación de Tesseract (osd); 0 si no está o duda."""
+        try:
+            osd = pytesseract.image_to_osd(img, config="--psm 0 -c min_characters_to_try=10",
+                                           output_type=pytesseract.Output.DICT, timeout=60)
+            if float(osd.get("orientation_conf", 0)) >= 2.0:
+                return int(osd.get("rotate", 0)) % 360
+        except Exception:
+            pass
+        return 0
+
     def _tesseract(self, img, numero, W, H, psm=3, inv=None, etiqueta="") -> OCRPage:
         alto, ancho = img.shape[:2]
         d = pytesseract.image_to_data(img, lang=self.idiomas, config=self._config(psm),
@@ -156,6 +168,27 @@ class TesseractProvider(OCRProvider):
             return OCRPage(number=numero, width_pt=W, height_pt=H, rotation=0, lines=[], meta=meta), {}
         lecturas = [self._tesseract(prep["limpia"], numero, W, H, 3, prep["inv"], "limpia")]
         antes = calidad.calidad_pagina(lecturas[0])["pct"] or 0.0
+        giro = 0
+        costado = _de_costado(lecturas[0])
+        if antes < 0.6 or costado:
+            # ¿hoja escaneada de costado o de cabeza? se detecta y se lee DERECHA; las
+            # coordenadas quedan en el marco derecho del texto (meta['giro'])
+            giro = self._orientacion(prep["limpia"])
+            if giro:
+                with pymupdf.open(pdf_path) as doc:
+                    prep_g = imagen.preparar(doc[numero - 1], self.dpi, enderezar=self.deskew, giro=giro)
+                    original_g = imagen.girar90(original, giro) if original is not None else None
+                Wg, Hg = (H, W) if giro in (90, 270) else (W, H)
+                otra = self._tesseract(prep_g["limpia"], numero, Wg, Hg, 3, prep_g["inv"], "limpia")
+                # si el texto corre en vertical y el detector de orientación lo confirma,
+                # la lectura derecha vale aunque la vertical haya salido «confiada»
+                exigido = fusion.puntaje(lecturas[0]) * (0.85 if costado else 1.0)
+                if fusion.puntaje(otra) > exigido:
+                    lecturas, prep, original, W, H = [otra], prep_g, original_g, Wg, Hg
+                    antes = calidad.calidad_pagina(otra)["pct"] or 0.0
+                    meta["giro"] = giro
+                else:
+                    giro = 0
         if self.relectura and antes < self.objetivo:
             if prep["sin_sellos"] is not None:
                 lecturas.append(self._tesseract(prep["sin_sellos"], numero, W, H, 3, prep["inv"], "sin_sellos"))
@@ -189,6 +222,19 @@ class TesseractProvider(OCRProvider):
         doc.meta = _meta_documento(doc, detalles, f"tesseract {self.idiomas} @ {self.dpi}dpi",
                                    self.concurrencia)
         return doc
+
+
+def _de_costado(pg) -> bool:
+    """¿El texto corre en vertical? (palabras más altas que anchas: hoja de costado)."""
+    n = vert = 0
+    for ln in pg.lines:
+        for w in ln.words:
+            if len(w.text) >= 4:
+                n += 1
+                ancho = (w.bbox[2] - w.bbox[0]) * pg.width_pt
+                alto = (w.bbox[3] - w.bbox[1]) * pg.height_pt
+                vert += alto > 1.2 * ancho
+    return n >= 5 and vert >= 0.5 * n
 
 
 def _meta_documento(doc, detalles, modelo, concurrencia):

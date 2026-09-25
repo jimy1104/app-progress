@@ -107,6 +107,10 @@ def extraer_contexto(doc, segmentos, nombre_archivo=""):
         from collections import Counter
         años = Counter(int(a) for p in doc.pages for a in re.findall(r"\b(20[1-3]\d)\b", p.text))
         if años: ctx["anio"] = años.most_common(1)[0][0]
+    try:
+        ctx["validaciones"] = validar(doc, segmentos, ctx)
+    except Exception as e:                       # la validación nunca debe tumbar el proceso
+        ctx["validaciones"] = [{"dato": "validación", "estado": "error", "detalle": str(e)[:200]}]
     return ctx
 
 def clave_objeto(objeto):
@@ -115,3 +119,163 @@ def clave_objeto(objeto):
     t = re.sub(r"[^A-Z0-9 ]", " ", t)
     t = re.sub(r"\b(DE|DEL|LA|LAS|LOS|EL|EN|Y|A|AL|PARA|POR)\b", " ", t)
     return re.sub(r"\s+", " ", t).strip()[:70]
+
+
+# =====================================================================
+#  VALIDACIÓN CRUZADA: un dato leído por OCR se da por BUENO solo si otra
+#  fuente independiente lo confirma. Así un «3» leído como «9» no pasa.
+# =====================================================================
+_PESOS_RUC = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+
+
+def ruc_valido(ruc: str) -> bool:
+    """Dígito verificador del RUC (SUNAT, módulo 11)."""
+    if not re.fullmatch(r"(10|15|16|17|20)\d{9}", ruc or ""):
+        return False
+    s = sum(int(d) * p for d, p in zip(ruc[:10], _PESOS_RUC))
+    dv = 11 - s % 11
+    dv = 0 if dv == 10 else 1 if dv == 11 else dv
+    return dv == int(ruc[10])
+
+
+_UNI = {"CERO": 0, "UN": 1, "UNO": 1, "UNA": 1, "DOS": 2, "TRES": 3, "CUATRO": 4, "CINCO": 5, "SEIS": 6,
+        "SIETE": 7, "OCHO": 8, "NUEVE": 9, "DIEZ": 10, "ONCE": 11, "DOCE": 12, "TRECE": 13, "CATORCE": 14,
+        "QUINCE": 15, "DIECISEIS": 16, "DIECISIETE": 17, "DIECIOCHO": 18, "DIECINUEVE": 19, "VEINTE": 20,
+        "VEINTIUN": 21, "VEINTIUNO": 21, "VEINTIDOS": 22, "VEINTITRES": 23, "VEINTICUATRO": 24,
+        "VEINTICINCO": 25, "VEINTISEIS": 26, "VEINTISIETE": 27, "VEINTIOCHO": 28, "VEINTINUEVE": 29,
+        "TREINTA": 30, "CUARENTA": 40, "CINCUENTA": 50, "SESENTA": 60, "SETENTA": 70, "OCHENTA": 80,
+        "NOVENTA": 90, "CIEN": 100, "CIENTO": 100, "DOSCIENTOS": 200, "TRESCIENTOS": 300,
+        "CUATROCIENTOS": 400, "QUINIENTOS": 500, "SEISCIENTOS": 600, "SETECIENTOS": 700,
+        "OCHOCIENTOS": 800, "NOVECIENTOS": 900}
+_VOCAB_NUM = list(_UNI) + ["MIL", "MILLON", "MILLONES", "Y"]
+
+
+def letras_a_numero(texto: str):
+    """«TREINTA Y NUEVE MIL NOVECIENTOS Y 00/100 SOLES» -> 39900.0 (tolera errores de OCR)."""
+    from difflib import get_close_matches
+    t = _n(texto)
+    m = re.search(r"((?:[A-Z]+\s+){1,14}?)(?:Y|CON)\s*(\d{2})\s*/\s*\S{2,4}", t)
+    if not m:
+        return None
+    total = actual = 0
+    vistos = 0
+    for w in m.group(1).split():
+        if w not in _VOCAB_NUM:
+            c = get_close_matches(w, _VOCAB_NUM, n=1, cutoff=0.8)
+            if not c:
+                continue
+            w = c[0]
+        if w == "Y":
+            continue
+        vistos += 1
+        if w in _UNI:
+            actual += _UNI[w]
+        elif w == "MIL":
+            total += max(actual, 1) * 1000; actual = 0
+        elif w in ("MILLON", "MILLONES"):
+            total = (total + max(actual, 1)) * 1_000_000; actual = 0
+    if not vistos:
+        return None
+    return float(total + actual) + int(m.group(2)) / 100.0
+
+
+def _montos_linea(ln):
+    return [v for v in parse_monto(ln.text) if 0 < v <= 200 * 5500]
+
+
+def validar(doc, segmentos, ctx):
+    """Contrasta los datos leídos entre fuentes independientes. Devuelve la lista
+    de validaciones y AJUSTA ctx cuando una lectura errónea queda desmentida."""
+    from collections import Counter
+    val = []
+    por_tipo = {}
+    for s in segmentos or []:
+        por_tipo.setdefault(s.tipo, []).append(s)
+
+    def lineas_de(tipo, solo_primero=True):
+        segs = por_tipo.get(tipo, [])[:1] if solo_primero else por_tipo.get(tipo, [])
+        return [ln for s in segs for p in range(s.pagina_ini, s.pagina_fin + 1) for ln in doc.pages[p - 1].lines]
+
+    orden = lineas_de("orden_servicio")
+    conf = lineas_de("conformidad", solo_primero=False)
+    fact = lineas_de("comprobante_pago", solo_primero=False)
+
+    # ---------------- monto total: votan fuentes independientes ----------------
+    fuentes = {}
+    tot = Counter(v for ln in orden if "TOTAL" in _n(ln.text) and "SUB" not in _n(ln.text) for v in _montos_linea(ln))
+    if tot:
+        fuentes["total de la orden"] = tot.most_common(1)[0][0]
+    venta = [v for ln in orden if re.search(r"\bV\W{0,2}VENTA\b|VALOR VENTA", _n(ln.text)) for v in _montos_linea(ln)]
+    igv = [v for ln in orden if re.search(r"\bI\W?G\W?V\b", _n(ln.text)) for v in _montos_linea(ln)]
+    for a in venta:
+        for b in igv:
+            if abs(a * 0.18 - b) <= 0.02 * b + 0.05:
+                fuentes["valor venta + IGV"] = round(a + b, 2)
+    for ln in orden:
+        v = letras_a_numero(ln.text)
+        if v:
+            fuentes["monto en letras"] = v
+            break
+    montos_conf = [v for ln in conf for v in _montos_linea(ln)]
+    votos = Counter(fuentes.values())
+    if montos_conf:
+        for v in list(votos):
+            if any(abs(v - c) < 0.01 for c in montos_conf):
+                fuentes["conformidad"] = v
+        votos = Counter(fuentes.values())
+    if votos:
+        ganador, n = votos.most_common(1)[0]
+        confirman = [k for k, v in fuentes.items() if abs(v - ganador) < 0.01]
+        if n >= 2:
+            val.append({"dato": "monto", "estado": "confirmado", "valor": ganador,
+                        "detalle": "coinciden: " + ", ".join(confirman)})
+            if abs((ctx.get("monto") or 0) - ganador) >= 0.01:
+                val[-1]["corregido_de"] = ctx.get("monto")
+            ctx["monto"], ctx["monto_fuente"] = ganador, "orden"
+            ctx["monto_validado"] = True
+        else:
+            val.append({"dato": "monto", "estado": "sin confirmar", "valor": ctx.get("monto"),
+                        "detalle": "solo una fuente: " + ", ".join(fuentes) if fuentes else "no leído"})
+            ctx["monto_validado"] = False
+    else:
+        ctx["monto_validado"] = False
+
+    # ---------------- RUC del proveedor: dígito verificador + otras fuentes -----
+    cands = Counter()
+    for fuente, lineas in (("orden", orden), ("conformidad", conf), ("factura", fact)):
+        for ln in lineas:
+            t = _n(ln.text)
+            if "RUC" not in t:
+                continue
+            dig = re.sub(r"\D", "", t.split("RUC", 1)[1])[:11]
+            if len(dig) == 11 and dig != MUNI_RUC:
+                cands[(dig, fuente)] += 1
+    validos = Counter()
+    for (r, f), n in cands.items():
+        if ruc_valido(r):
+            validos[r] += 1
+    ruc = ctx.get("ruc", "")
+    if ruc and ruc_valido(ruc):
+        otros = [f for (r, f) in cands if r == ruc]
+        val.append({"dato": "ruc", "estado": "confirmado", "valor": ruc,
+                    "detalle": "dígito verificador correcto" + (f"; aparece en: {', '.join(sorted(set(otros)))}" if otros else "")})
+    elif validos:
+        bueno = validos.most_common(1)[0][0]
+        val.append({"dato": "ruc", "estado": "corregido", "valor": bueno, "corregido_de": ruc,
+                    "detalle": "el RUC leído no pasa el dígito verificador; se usa el de otra hoja que sí lo pasa"})
+        ctx["ruc"] = bueno
+    elif ruc:
+        val.append({"dato": "ruc", "estado": "dudoso", "valor": ruc,
+                    "detalle": "no pasa el dígito verificador de SUNAT: revíselo en el documento"})
+    malos = sorted({r for (r, f) in cands if not ruc_valido(r) and r != ctx.get("ruc")})
+    if malos:
+        val.append({"dato": "ruc", "estado": "lectura descartada", "valor": ", ".join(malos),
+                    "detalle": "lecturas de RUC con dígito verificador inválido (error de OCR)"})
+
+    # ---------------- N° de orden citado en la conformidad ----------------------
+    if ctx.get("os") and conf:
+        txt = re.sub(r"\D", "", " ".join(ln.text for ln in conf if "ORDEN" in _n(ln.text) or re.search(r"\d{4}", ln.text)))
+        if ctx["os"].lstrip("0") and ctx["os"].lstrip("0") in txt:
+            val.append({"dato": "orden", "estado": "confirmado", "valor": ctx["os"],
+                        "detalle": "la conformidad cita la misma orden"})
+    return val

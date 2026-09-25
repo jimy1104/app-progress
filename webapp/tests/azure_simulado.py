@@ -26,8 +26,8 @@ class _Poller:
 
 
 class ClienteSimulado:
-    def __init__(self, sin_girar=False, dpi=200):
-        self.sin_girar, self.dpi = sin_girar, dpi
+    def __init__(self, sin_girar=False, dpi=200, conf_primera=1.0):
+        self.sin_girar, self.dpi, self.conf_primera = sin_girar, dpi, conf_primera
         self.llamadas = []            # (paginas, features) de cada llamada, para las pruebas
 
     def begin_analyze_document(self, modelo, body, locale=None, content_type=None, features=None, **kw):
@@ -55,6 +55,8 @@ class ClienteSimulado:
                     r = pymupdf.Rect(x0 * 72, y0 * 72, x1 * 72, y1 * 72) * M
                     x0, y0, x1, y1 = r.x0 / 72, r.y0 / 72, r.x1 / 72, r.y1 / 72
                 c = max(0.0, float(d["conf"][k])) / 100.0
+                if not self.llamadas[:-1]:            # primera llamada = PDF completo
+                    c *= self.conf_primera
                 grupos.setdefault((d["block_num"][k], d["par_num"][k], d["line_num"][k]), []).append(
                     (t, c, [x0, y0, x1, y0, x1, y1, x0, y1]))
             words, lines = [], []

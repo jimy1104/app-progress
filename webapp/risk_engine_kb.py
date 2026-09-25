@@ -68,6 +68,9 @@ class Hallazgo:
     como_verificar: str = ""
     evidencia: str = ""
     ubicaciones: list = field(default_factory=list)
+    documento: str = ""               # subdocumento donde está el hallazgo («Orden de Servicio»)
+    documento_idx: int = -1           # índice en la lista de documentos del expediente (-1: expediente)
+    documento_paginas: list = field(default_factory=list)   # [pág. inicial, pág. final] de ese documento
 
 def _find_line(doc, patrones):
     """Primera línea (con su conf y bbox) que casa cualquier patrón normalizado."""
@@ -108,6 +111,38 @@ ANCLA_DOC = {
     "CCI": ["CARTA DE AUTORIZACION", "CODIGO DE CUENTA INTERBANCARI", "AUTORIZACION DE ABONO"],
 }
 _CLAUSULA = re.compile(r"^\W*\d+(\.\d+)*\s*[.)\-:]?\s")
+
+# documento esperado -> tipo de documento que reconoce el segmentador (os_engine.DOCS)
+SEG_DE_ANCLA = {"COTIZACION": "cotizacion", "CCP": "certificacion", "DECLARACION": "anexo",
+                "CONFORMIDAD": "conformidad", "CCI": "cci", "PUBLICACION": None}
+
+
+def _documento_de(pagina, segmentos):
+    for i, sg in enumerate(segmentos or []):
+        if sg.pagina_ini <= pagina <= sg.pagina_fin:
+            return i, sg
+    return -1, None
+
+
+def ubicar_en_documentos(hallazgos, segmentos):
+    """Cada hallazgo (y cada una de sus ubicaciones) sabe en qué subdocumento y en
+    qué hojas está. Los hallazgos por AUSENCIA quedan a nivel de expediente."""
+    for h in hallazgos:
+        for u in h.ubicaciones or []:
+            i, sg = _documento_de(u.get("pagina", 0), segmentos)
+            u["documento"] = sg.etiqueta if sg else ""
+            u["documento_idx"] = i
+        pags = [u["pagina"] for u in (h.ubicaciones or []) if u.get("pagina")]
+        if not pags:
+            h.documento, h.documento_idx = "Expediente completo", -1
+            continue
+        i, sg = _documento_de(pags[0], segmentos)
+        if sg:
+            h.documento, h.documento_idx = sg.etiqueta, i
+            h.documento_paginas = [sg.pagina_ini, sg.pagina_fin]
+        else:
+            h.documento, h.documento_idx = "Hojas sin documento identificado", -1
+    return hallazgos
 
 def _mencion(doc, anclas, excluir=()):
     """Segunda revisión: ¿se menciona en cualquier parte del texto (fuera del TDR)?"""
@@ -192,11 +227,21 @@ def detectar(doc, kb, familia, accumulator=None, contexto=None, segmentos=None, 
 
         elif modo == "presencia":
             # ¿qué documento/elemento se espera? se infiere del texto del riesgo
-            rn = norm(r["hecho"]); objetivo=None
+            rn = norm(r["hecho"]); objetivo=None; clave_doc=None
             for key,anclas in ANCLA_DOC.items():
                 if any(norm(a) in rn for a in anclas) or re.search(r"\b" + key + r"\b", rn):
-                    objetivo=anclas; break
-            if objetivo:
+                    objetivo=anclas; clave_doc=key; break
+            tipo_seg = SEG_DE_ANCLA.get(clave_doc)
+            seg_doc = next((sg for sg in (segmentos or []) if tipo_seg and sg.tipo == tipo_seg), None)
+            if objetivo and seg_doc is not None:
+                # el segmentador ya lo ubicó como documento propio: obra en el expediente
+                nivel = None
+                if verificados is not None:
+                    verificados.append({"id": r["id"], "hecho": r["hecho"], "nivel_matriz": r.get("nivel", ""),
+                        "motivo": f"Obra como documento propio: {seg_doc.etiqueta} "
+                                  f"(pág. {seg_doc.pagina_ini}{'–' + str(seg_doc.pagina_fin) if seg_doc.pagina_fin != seg_doc.pagina_ini else ''}).",
+                        "pagina": seg_doc.pagina_ini})
+            elif objetivo:
                 ln=_find_doc(doc, objetivo, excluir=pags_solo_tdr)
                 if ln is None:      # 1ra revisión: no hay documento con ese título
                     ln2 = _mencion(doc, objetivo, excluir=pags_solo_tdr)   # 2da revisión: texto completo
@@ -236,7 +281,8 @@ def detectar(doc, kb, familia, accumulator=None, contexto=None, segmentos=None, 
                 bbox, conf = list(ln0.bbox), ln0.conf
                 uniq = []
                 for fch, pgn, lnx in vistas:
-                    tag = f"{fch.strftime('%d/%m/%Y')} (pág. {pgn})"
+                    _, sgx = _documento_de(pgn, segmentos)
+                    tag = f"{fch.strftime('%d/%m/%Y')} (pág. {pgn}{', ' + sgx.etiqueta if sgx else ''})"
                     if tag not in uniq:
                         uniq.append(tag)
                         if len(ubic) < 8:
@@ -298,4 +344,4 @@ def detectar(doc, kb, familia, accumulator=None, contexto=None, segmentos=None, 
                 nivel_matriz=r.get("nivel",""), actividad=r.get("actividad",""),
                 como_verificar=(r.get("procedimientos") or [{}])[0].get("procedimiento",""),
                 evidencia=evidencia, ubicaciones=ubic))
-    return hall
+    return ubicar_en_documentos(hall, segmentos)

@@ -48,6 +48,18 @@ def resultado(jid):
         return None
 
 def pdf_path(jid): return os.path.join(_dir(jid), "expediente.pdf")
+def ocr_path(jid): return os.path.join(_dir(jid), "ocr.json")
+def buscable_path(jid): return os.path.join(_dir(jid), "expediente_buscable.pdf")
+
+def texto(jid):
+    """Todo el texto leído, hoja por hoja, con el documento al que pertenece cada hoja."""
+    from ocr.base import OCRDocument
+    from ocr.pdf_buscable import texto_plano
+    doc = OCRDocument.from_json(ocr_path(jid))
+    res = resultado(jid) or {}
+    segs = [os_engine.Segmento(**{k: d[k] for k in ("tipo", "etiqueta", "pagina_ini", "pagina_fin", "confianza")})
+            for d in res.get("documentos", [])]
+    return texto_plano(doc, segs)
 
 # ---------------- proveedor de OCR ----------------
 class _CacheProvider:
@@ -266,13 +278,29 @@ def _run(jid):
         acepta = "progreso" in inspect.signature(provider.analyze).parameters
         doc = provider.analyze(pdf_path(jid), progreso=_avance) if acepta else provider.analyze(pdf_path(jid))
 
+        try:
+            doc.to_json(ocr_path(jid))          # la lectura completa, para texto y PDF buscable
+        except Exception:
+            pass
+
         _set(jid, etapa="segmentando", etapa_txt="Identificando los documentos del expediente")
         segs = os_engine.segmentar(doc)
+        mapa = os_engine.mapa_paginas(doc, segs)
+        buscable = None
+        if os.getenv("PDF_BUSCABLE", "1") != "0":
+            try:
+                from ocr.pdf_buscable import hacer_buscable
+                with hacer_buscable(pdf_path(jid), doc) as bd:
+                    bd.save(buscable_path(jid), garbage=3, deflate=True)
+                buscable = buscable_path(jid)
+            except Exception:
+                traceback.print_exc()
         cortes = []
         if m.get("cortar"):
             tipos = [os_engine.CORTES_UI.get(t, t) for t in m["cortar"]]
             cdir = os.path.join(_dir(jid), "cortes")
-            cortes = cortar_pdf(pdf_path(jid), segs, tipos, cdir)
+            # los cortes salen del PDF buscable: cada documento cortado se puede buscar (Ctrl+F)
+            cortes = cortar_pdf(buscable or pdf_path(jid), segs, tipos, cdir)
             for c in cortes: c["archivo"] = os.path.basename(c["archivo"])
 
         _set(jid, etapa="riesgo", etapa_txt="Contrastando con la matriz de riesgos y la normativa")
@@ -280,27 +308,47 @@ def _run(jid):
         clave = extractor.clave_objeto(ctx["objeto"]) if ctx["objeto"] else ""
         anio = ctx["anio"] or datetime.now(store.PE).year
         previos = store.acumulado_previo(clave, anio, ctx["os"]) if clave else []
-        ctx_eng = {"monto": ctx["monto"], "monto_fuente": ctx["monto_fuente"], "objeto": clave,
+        ctx_eng = {"monto": ctx["monto"],
+                   "monto_fuente": ctx["monto_fuente"] if ctx.get("monto_validado", True) else "estimado",
+                   "objeto": clave,
                    "objeto_txt": ctx["objeto"], "monto_linea": ctx["monto_linea"]}
         verificados = []
         hall = risk_engine_kb.detectar(doc, kb()["riesgos"], m["familia"],
                                        accumulator=({clave: previos} if clave else {}), contexto=ctx_eng,
                                        segmentos=segs, verificados=verificados)
-        if ctx["os"] and clave and ctx["monto_fuente"] == "orden":
+        if ctx["os"] and clave and ctx["monto_fuente"] == "orden" and ctx.get("monto_validado") is not False:
             store.acumulado_guardar(anio, ctx["os"], clave, {
                 "monto": ctx["monto"], "ruc": ctx["ruc"], "objeto": ctx["objeto"],
                 "familia": m["familia"], "usuario": m["usuario"]})
 
-        confs = [l.conf for p in doc.pages for l in p.lines]
+        from ocr.calidad import calidad_documento
+        cal = calidad_documento(doc)
+        documentos = []
+        for i, s_ in enumerate(segs):
+            d_ = dataclasses.asdict(s_)
+            d_["i"] = i
+            d_["riesgos"] = [{"id": h.id, "nivel": h.nivel, "hecho": h.hecho} for h in hall if h.documento_idx == i]
+            documentos.append(d_)
         res = {
             "id": jid, "provider": doc.provider, "paginas": doc.n_pages,
-            "conf_ocr": round(sum(confs) / len(confs), 3) if confs else 0,
+            # «lectura OCR»: % de palabras de texto que quedaron SEGURAS (alta confianza
+            # o confirmadas por dos lecturas). Ver ocr/calidad.py.
+            "conf_ocr": cal["lectura_pct"],
+            "calidad": {k: cal[k] for k in ("lectura_pct", "conf_texto", "conf_bruta", "palabras", "seguras",
+                                            "verificadas", "hojas_en_blanco", "paginas_revisar", "objetivo_pagina",
+                                            "por_pagina")},
             "ocr": getattr(doc, "meta", {}) or {},
             "familia": m["familia"], "subproceso": m["subproceso"], "archivo": m["archivo"],
-            "contexto": {k: ctx[k] for k in ("os", "ruc", "monto", "monto_fuente", "objeto", "anio")},
+            "contexto": {k: ctx.get(k) for k in ("os", "ruc", "monto", "monto_fuente", "objeto", "anio",
+                                                 "monto_validado")},
+            "validaciones": ctx.get("validaciones", []),
             "acumulado_previo": {"ordenes": len(previos), "monto": round(sum(previos), 2)},
             "paginas_dim": {p.number: [p.width_pt, p.height_pt] for p in doc.pages},
-            "documentos": [dataclasses.asdict(s) for s in segs],
+            "paginas_giro": {p.number: (p.meta or {}).get("giro", 0) for p in doc.pages
+                             if (p.meta or {}).get("giro")},
+            "documentos": documentos,
+            "mapa_paginas": mapa,
+            "buscable": bool(buscable),
             "cortes": [{"i": i, **{k: c[k] for k in ("tipo", "etiqueta", "pagina_ini", "pagina_fin", "archivo")}}
                        for i, c in enumerate(cortes)],
             "riesgos": [dataclasses.asdict(h) for h in hall],
@@ -387,13 +435,22 @@ def limpiar_antiguos(horas=None):
     return n
 
 # ---------------- páginas ----------------
-def pagina_png(jid, n, zoom=1.5, dim_ocr=None):
+def pagina_png(jid, n, zoom=1.5, dim_ocr=None, giro=None):
     """Dibuja la página. Si el OCR la leyó en la otra orientación (las hojas
     escaneadas vienen rotadas), se gira la imagen para que el resaltado calce."""
     with pymupdf.open(pdf_path(jid)) as d:
         n = max(1, min(n, d.page_count))
         pg = d[n - 1]
         m = pymupdf.Matrix(zoom, zoom)
+        if giro is not None:
+            # resultados v5: coordenadas en el marco derecho del texto (giro horario)
+            if not giro:
+                return pg.get_pixmap(matrix=m).tobytes("png")
+            from ocr import imagen
+            import numpy as np
+            pix = pg.get_pixmap(matrix=m, alpha=False)
+            a = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, pix.n)[:, :, :3]
+            return imagen.a_png(np.ascontiguousarray(imagen.girar90(a, giro)[:, :, ::-1]))
         if dim_ocr and dim_ocr[0] and dim_ocr[1]:
             apaisado_ocr = dim_ocr[0] > dim_ocr[1]
             if apaisado_ocr != (pg.rect.width > pg.rect.height):

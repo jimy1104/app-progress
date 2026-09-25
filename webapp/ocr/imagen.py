@@ -203,6 +203,25 @@ def des_rotar_bbox(bbox, inv, ancho, alto):
             min(1.0, q[:, 0].max() / ancho), min(1.0, q[:, 1].max() / alto))
 
 
+def girar90(img: np.ndarray, grados: int) -> np.ndarray:
+    """Gira la imagen 90/180/270 grados en sentido horario (hojas escaneadas de costado)."""
+    k = (grados // 90) % 4
+    return np.ascontiguousarray(np.rot90(img, -k)) if k else img
+
+
+def des_girar90_bbox(bbox, grados: int):
+    """bbox (fracciones) medido en la imagen girada 'grados' horario -> hoja original."""
+    x0, y0, x1, y1 = bbox
+    k = (grados // 90) % 4
+    if k == 1:      # horario 90: (x', y') = (1 - y, x)  ->  x = y', y = 1 - x'
+        return (y0, 1 - x1, y1, 1 - x0)
+    if k == 2:
+        return (1 - x1, 1 - y1, 1 - x0, 1 - y0)
+    if k == 3:      # horario 270: (x', y') = (y, 1 - x) ->  x = 1 - y', y = x'
+        return (1 - y1, x0, 1 - y0, x1)
+    return bbox
+
+
 # ------------------------------------------------------------ hoja en blanco --
 def tinta_util(limpia: np.ndarray) -> float:
     """Fracción de la hoja (sin márgenes) cubierta por tinta verdadera, contando
@@ -262,7 +281,7 @@ def a_jpg(img: np.ndarray, calidad: int = 92) -> bytes:
 
 
 # -------------------------------------------------------------- variantes ----
-def preparar(page, dpi=DPI_OCR, enderezar=True):
+def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0):
     """Todo lo que el OCR necesita de una hoja, calculado una sola vez.
 
     Devuelve dict con:
@@ -272,6 +291,8 @@ def preparar(page, dpi=DPI_OCR, enderezar=True):
       angulo, en_blanco, tinta, color, dpi_origen, qr
     """
     rgb = render(page, dpi, color=True)
+    if giro:                                     # hoja escaneada de costado / de cabeza
+        rgb = girar90(rgb, giro)
     gris = a_gris(rgb)
     limpia = suprimir_transparencia(aplanar_fondo(gris))
     frac_color = hay_color(rgb)

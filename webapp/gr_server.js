@@ -132,7 +132,9 @@ window.showResults=function(){
   goStep(4);
   risks=[...RES.riesgos].sort((a,b)=>(a.nivel!=='rojo')-(b.nivel!=='rojo')||(ORD[a.nivel_matriz]??3)-(ORD[b.nivel_matriz]??3));
   const nR=risks.filter(r=>r.nivel==='rojo').length, nA=risks.length-nR, ver=RES.verificados||[];
-  $('resSub').textContent=`${RES.subproceso} · ${RES.archivo} · ${RES.paginas} páginas · lectura OCR ${Math.round((RES.conf_ocr||0)*100)}% (${RES.provider==='azure-document-intelligence'?'Azure':RES.provider})`;
+  const cal=RES.calidad||{};
+  $('resSub').textContent=`${RES.subproceso} · ${RES.archivo} · ${RES.paginas} páginas · lectura OCR ${(100*(RES.conf_ocr||0)).toFixed(1)}% de palabras seguras (${RES.provider==='azure-document-intelligence'?'Azure':RES.provider})`
+    +((cal.hojas_en_blanco||[]).length?` · ${cal.hojas_en_blanco.length} reverso(s) en blanco`:'');
   document.querySelector('#ws4 .counts').innerHTML=
     `<span><b style="color:var(--red)">${nR}</b> confirmados</span><span><b style="color:var(--amber)">${nA}</b> por revisar</span>`+
     `<span><b style="color:var(--ok)">${ver.length}</b> verificados sin observación</span><span><b>${RES.cortes.length}</b> documentos cortados</span>`;
@@ -147,18 +149,38 @@ window.showResults=function(){
 function detalleOCR(){
   const o=RES.ocr||{}; const host=$('resSub'); if(!host) return;
   const bajo=(o.paginas_bajo_umbral||[]).length, mej=(o.paginas_mejoradas||[]).length;
+  const ver=(RES.calidad||{}).verificadas||0;
   if(!o.relecturas && !bajo) return;
   const det=document.createElement('div'); det.className='rsub'; det.style.marginTop='6px';
-  det.innerHTML=`Lectura reforzada: se releyeron ${o.relecturas||0} página(s) en alta resolución`
+  det.innerHTML=`Lectura reforzada: se releyeron ${o.relecturas||0} página(s) con la imagen limpia y sin sellos`
+    + (ver?` (${ver} palabras confirmadas por dos lecturas)`:'')
     + (mej?`, mejoraron ${mej}`:'')
-    + (bajo?` · <b>${bajo} página(s) siguen bajo el ${Math.round((o.umbral||0.9)*100)}%</b>: ${(o.paginas_bajo_umbral||[]).slice(0,15).join(', ')}${bajo>15?'…':''} — conviene revisarlas a mano.`:' · todas por encima del umbral.');
+    + (bajo?` · <b>${bajo} página(s) con palabras dudosas (menos del ${Math.round((o.umbral||0.95)*100)}% seguras)</b>: ${(o.paginas_bajo_umbral||[]).slice(0,15).join(', ')}${bajo>15?'…':''} — conviene mirarlas.`:' · todas las páginas por encima del objetivo.');
   host.after(det);
 }
 function extras(ver){
   let box=$('srvExtra'); if(!box){ box=document.createElement('div'); box.id='srvExtra';
     document.querySelector('#ws4 .result-head').after(box); }
   const c=RES.contexto||{}, ac=RES.acumulado_previo||{};
-  const docs=(RES.documentos||[]).map(s=>`<div class="blitem"><b>pág. ${s.pagina_ini}${s.pagina_fin!==s.pagina_ini?'–'+s.pagina_fin:''}</b> — ${esc(s.etiqueta)}</div>`).join('');
+  const COL=['#2f6fde','#16a34a','#d97706','#9333ea','#dc2626','#0891b2','#65a30d','#db2777','#4f46e5','#b45309'];
+  const docs=(RES.documentos||[]).map((s,i)=>{
+    const rs=(s.riesgos||[]), nr=rs.filter(r=>r.nivel==='rojo').length;
+    const chips=rs.map(r=>`<span class="tag ${r.nivel==='rojo'?'revw':'cut'}" title="${esc(r.hecho)}">${esc(r.id)}</span>`).join(' ');
+    return `<div class="blitem" style="border-left:4px solid ${COL[i%COL.length]}"><b>pág. ${s.pagina_ini}${s.pagina_fin!==s.pagina_ini?'–'+s.pagina_fin:''}</b> — ${esc(s.etiqueta)}`
+      +((s.blancas||[]).length?` <span class="rsub">(reverso en blanco: ${s.blancas.join(', ')})</span>`:'')
+      +(s.revisar?` <span class="tag cut" title="La frontera de este documento tiene poca evidencia">revisar corte</span>`:'')
+      +(rs.length?`<br><span class="rsub">${rs.length} riesgo(s)${nr?`, <b style="color:var(--red)">${nr} confirmado(s)</b>`:''}:</span> ${chips}`:'<br><span class="rsub">sin riesgos ubicados en este documento</span>')
+      +`</div>`;}).join('');
+  const mapa=(RES.mapa_paginas||[]).map(p=>{
+    const c=p.documento==null?'#cbd5e1':COL[p.documento%COL.length], blanca=/blanco/.test(p.rol);
+    return `<a href="${withT('/api/jobs/'+JOB+'/expediente.pdf')}#page=${p.pagina}" target="_blank" rel="noopener" title="Hoja ${p.pagina}: ${esc(p.etiqueta||'sin documento')} · ${esc(p.rol)}"
+      style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:34px;margin:2px;border-radius:4px;font-size:11px;text-decoration:none;
+      ${blanca?`background:repeating-linear-gradient(45deg,#fff,#fff 3px,${c}33 3px,${c}33 6px);color:${c};border:1px dashed ${c}`:`background:${c};color:#fff`};${p.rol==='inicio'?'box-shadow:inset 0 3px 0 rgba(0,0,0,.35)':''}">${p.pagina}</a>`;}).join('');
+  const descargas=`${RES.buscable?`<a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/buscable.pdf')}">⬇ Expediente buscable (PDF con texto)</a>`:''}
+     <a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/texto.txt')}">⬇ Todo el texto leído (.txt)</a>`;
+  const EST={'confirmado':['✓','var(--ok)'],'corregido':['✎','var(--amber)'],'dudoso':['?','var(--red)'],'sin confirmar':['?','var(--amber)'],'lectura descartada':['✗','var(--muted)']};
+  const vals=(RES.validaciones||[]).map(v=>{const e=EST[v.estado]||['·','var(--muted)'];
+    return `<div class="rsub" style="margin-top:4px"><b style="color:${e[1]}">${e[0]} ${esc(v.dato)} ${esc(v.estado)}</b>${v.valor!=null?' — '+esc(v.dato==='monto'?money(v.valor):v.valor):''}${v.corregido_de?` (se leyó «${esc(v.dato==='monto'?money(v.corregido_de):v.corregido_de)}»)`:''} · ${esc(v.detalle||'')}</div>`;}).join('');
   const cortes=(RES.cortes||[]).map(x=>`<a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/corte/'+x.i)}">⬇ ${esc(x.etiqueta)} (pág. ${x.pagina_ini}–${x.pagina_fin})</a>`).join(' ');
   const verif=ver.map(v=>`<div class="blitem" style="border-color:var(--ok)"><b>${esc(v.id)}</b> — ${esc(v.hecho)}<br><span class="rsub">✓ ${esc(v.motivo)}</span></div>`).join('');
   box.innerHTML=`<div class="card">
@@ -168,7 +190,11 @@ function extras(ver){
        <div class="blitem"><b>Orden</b> — ${c.os?'N° '+esc(c.os):'<i>no se pudo leer</i>'} &nbsp; <b>RUC</b> — ${esc(c.ruc)||'<i>no leído</i>'} &nbsp; <b>Monto</b> — ${c.monto?money(c.monto):'<i>no leído</i>'}</div>
        <div class="blitem"><b>Objeto</b> — ${esc(c.objeto)||'<i>no leído</i>'}</div>
        <div class="blitem"><b>Acumulado previo del mismo objeto (${esc(c.anio)})</b> — ${ac.ordenes||0} orden(es), ${money(ac.monto)}</div>
-     </div></div>
+     </div>${vals?`<div class="clabel" style="margin-top:12px">Validación cruzada de los datos</div>${vals}`:''}</div>
+   <div class="card"><div class="clabel">Mapa del expediente — qué es cada hoja</div>
+     <div class="cdesc" style="margin:4px 0 6px">Cada color es un documento; la raya de arriba marca su primera hoja; las rayadas son reversos en blanco. Clic para abrir esa hoja.</div>
+     <div style="display:flex;flex-wrap:wrap">${mapa}</div>
+     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${descargas}</div></div>
    <div class="card"><div class="clabel">Documentos identificados en el expediente</div><div class="bllist" style="margin-top:8px">${docs||'<span class="rsub">No se identificaron cabeceras de documentos.</span>'}</div>
      ${cortes?`<div class="clabel" style="margin-top:16px">Documentos cortados</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${cortes}</div>`:''}</div>
    ${ver.length?`<details class="card"><summary class="clabel" style="cursor:pointer">✓ Controles verificados sin observación (${ver.length})</summary><div class="bllist" style="margin-top:10px">${verif}</div></details>`:''}`;
@@ -183,7 +209,8 @@ function card(r,i){
       <div class="rttl">${esc(r.hecho)}</div>
       <div class="rmeta"><span class="rbadge">${rojo?'Confirmado':'Por revisar'}</span>
         <span class="tag ${r.nivel_matriz==='MUY ALTO'?'revw':'cut'}">Nivel ${esc(r.nivel_matriz)}</span>
-        <span class="rsub mono">${esc(r.id)}${(r.ubicaciones&&r.ubicaciones.length)?' · pág. '+r.ubicaciones.map(u=>u.pagina).slice(0,4).join(', ')+(r.ubicaciones.length>4?'…':''):' · sin renglón (ausencia)'}</span></div></div></div>
+        <span class="rsub mono">${esc(r.id)}${(r.ubicaciones&&r.ubicaciones.length)?' · pág. '+r.ubicaciones.map(u=>u.pagina).slice(0,4).join(', ')+(r.ubicaciones.length>4?'…':''):' · sin renglón (ausencia)'}</span>
+        ${r.documento?`<span class="rsub">· en: <b>${esc(r.documento)}</b>${(r.documento_paginas||[]).length?` (pág. ${r.documento_paginas[0]}${r.documento_paginas[1]!==r.documento_paginas[0]?'–'+r.documento_paginas[1]:''})`:''}</span>`:''}</div></div></div>
     <div class="risk-body">
       <div class="rsection"><div class="rlab">${IC.law}Marco legal</div><div class="bllist">${bl}</div></div>
       <div class="rsection"><div class="rlab">${IC.doc}El hecho — dónde está el riesgo</div><p>${esc(r.nota)}</p>${ev}</div>
@@ -219,7 +246,7 @@ window.verUbic=function(i,k){
   (r.ubicaciones||[]).forEach((_,j)=>{ const b=$('ub'+i+'_'+j); if(b) b.className='btn '+(j===k?'':'ghost ')+'sm'; });
   const b=u.bbox||[0,0,1,0.02], p=u.pagina;
   $('ubv'+i).innerHTML=`
-    ${u.texto?`<div class="cita" style="margin-top:10px;border-color:var(--amber-accent);background:var(--amber-bg)">«${esc(u.texto)}»</div>`:''}
+    ${u.texto?`<div class="cita" style="margin-top:10px;border-color:var(--amber-accent);background:var(--amber-bg)">«${esc(u.texto)}»${u.documento?`<br><span class="rsub">Hoja ${p} · ${esc(u.documento)}</span>`:''}</div>`:''}
     <div style="position:relative;margin-top:10px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff">
       <img src="${withT('/api/jobs/'+JOB+'/pagina/'+p+'.png')}" style="width:100%;display:block" alt="Página ${p}" loading="lazy">
       <div style="position:absolute;left:${Math.max(0,b[0]*100-0.6)}%;top:${Math.max(0,b[1]*100-0.4)}%;

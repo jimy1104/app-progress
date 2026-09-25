@@ -188,6 +188,12 @@ class AzureDocIntelligenceProvider(OCRProvider):
                 diag = nativo.diagnostico(page)
                 nat = nativo.leer(page, i) if diag["solo_texto"] else None
                 prep = imagen.preparar(page, self.dpi, enderezar=False)
+                # en memoria solo quedan JPEG (~0,5 MB por hoja), no las matrices de
+                # 300 DPI (~17 MB): un expediente de 44 hojas cabe en un App Service B1
+                for v in ("limpia", "sin_sellos"):
+                    img = prep.pop(v, None)
+                    prep[v] = None if (img is None or prep["en_blanco"]) else imagen.a_jpg(img, 90)
+                prep.pop("inv", None)
                 return i, diag, nat, prep
         out = {}
         with ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 2))) as pool:
@@ -200,10 +206,10 @@ class AzureDocIntelligenceProvider(OCRProvider):
         out = pymupdf.open()
         mapa = {}
         for k, n in enumerate(hojas, start=1):
-            img = preps[n][2][variante]
+            jpg = preps[n][2][variante]
             W, H = dims[n]
             pg = out.new_page(width=W, height=H)
-            pg.insert_image(pg.rect, stream=imagen.a_jpg(img, 90))
+            pg.insert_image(pg.rect, stream=jpg)
             mapa[k] = n
         datos = out.tobytes(deflate=True)
         out.close()
@@ -250,11 +256,22 @@ class AzureDocIntelligenceProvider(OCRProvider):
         if progreso:
             progreso(1, 3, None)
         paginas = {p.number: p for p in primera}
+        giros = {}
+        for p in primera:
+            # Azure informa hacia dónde está girado el texto (grados, sentido horario).
+            # Una hoja escaneada de costado se lleva al marco derecho del texto.
+            ang = p.meta.get("angulo_azure", 0) or 0
+            k = round(ang / 90.0)
+            if k and abs(ang - 90 * k) <= 10:
+                giros[p.number] = (-90 * k) % 360
+                p.girar(giros[p.number])
         for i in range(1, n + 1):
             diag, nat, prep = preps[i]
             pg = paginas.get(i) or OCRPage(number=i, width_pt=dims[i][0], height_pt=dims[i][1],
                                            rotation=0, lines=[])
             meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco")}
+            if i in giros:
+                meta["giro"] = giros[i]
             meta.update({"fuente": "ocr", "lecturas": ["original"], "qr": prep.get("qr", []),
                          "codigos": pg.meta.get("codigos", []), "angulo_azure": pg.meta.get("angulo_azure", 0)})
             if nat is not None:
@@ -279,7 +296,7 @@ class AzureDocIntelligenceProvider(OCRProvider):
                     progreso(2, 3, None)
                 extra = self._releer(hojas, preps, dims)
                 for h in hojas:
-                    otras = extra.get(h, [])
+                    otras = [o.girar(giros.get(h, 0)) for o in extra.get(h, [])]
                     if not otras:
                         continue
                     base = paginas[h]

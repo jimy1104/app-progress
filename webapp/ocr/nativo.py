@@ -28,8 +28,12 @@ def diagnostico(page) -> dict:
                 visibles += n
     except Exception:
         visibles = len(page.get_text("text") or "")
-    fuentes = " ".join(f[3] for f in page.get_fonts(full=False)) if hasattr(page, "get_fonts") else ""
+    fuentes_l = page.get_fonts(full=False) if hasattr(page, "get_fonts") else []
+    fuentes = " ".join(f[3] for f in fuentes_l)
     glyphless = "GlyphLess" in fuentes
+    # glifos Type3 redibujados desde el escaneo (Nitro/ClearScan): se ven bien, pero
+    # el texto que llevan detrás lo adivinó el OCR del escáner
+    tipo3 = bool(fuentes_l) and all(f[2] == "Type3" for f in fuentes_l)
     texto = page.get_text("text") or ""
     palabras = _LETRAS.findall(texto)
     area = abs(page.rect.width * page.rect.height) or 1.0
@@ -42,9 +46,10 @@ def diagnostico(page) -> dict:
         pass
     # Si un escaneo tapa toda la hoja, el texto que hay debajo (o invisible) lo puso
     # el OCR del escáner: no es texto digital y no se confía en él.
-    capa_ocr_ajena = cobertura_img >= 0.9 or glyphless or invisibles > visibles
+    capa_ocr_ajena = cobertura_img >= 0.9 or glyphless or invisibles > visibles or \
+        (tipo3 and cobertura_img >= 0.5)
     digital = (visibles >= 40 and not capa_ocr_ajena and len(palabras) >= 5)
-    return {"visibles": visibles, "invisibles": invisibles, "glyphless": glyphless,
+    return {"visibles": visibles, "invisibles": invisibles, "glyphless": glyphless, "tipo3": tipo3,
             "palabras": len(palabras), "cobertura_imagen": round(min(1.0, cobertura_img), 3),
             "digital": digital, "capa_ocr_ajena": bool(capa_ocr_ajena and (visibles + invisibles) > 0),
             # hoja 100% digital (sin escaneo debajo): se usa su texto y no se hace OCR
