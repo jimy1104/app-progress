@@ -1,0 +1,335 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Theme tokens — accents are RGB triples so they work with rgb(/ a)   */
+/* ------------------------------------------------------------------ */
+:root {
+  --a1: 94 234 212;   /* teal   */
+  --a2: 167 139 250;  /* violet */
+  --a3: 251 191 36;   /* amber  */
+  --ink: 5 6 10;
+  color-scheme: dark;
+}
+:root[data-theme='ember'] {
+  --a1: 251 146 60;
+  --a2: 244 114 182;
+  --a3: 250 204 21;
+}
+:root[data-theme='glacier'] {
+  --a1: 125 211 252;
+  --a2: 129 140 248;
+  --a3: 224 242 254;
+}
+:root[data-theme='jade'] {
+  --a1: 52 211 153;
+  --a2: 163 230 53;
+  --a3: 45 212 191;
+}
+:root[data-text='large'] {
+  font-size: 112.5%;
+}
+
+html,
+body {
+  background: rgb(var(--ink));
+}
+body {
+  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection {
+  background: rgb(var(--a1) / 0.35);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Liquid glass                                                        */
+/* ------------------------------------------------------------------ */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.01);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.15) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.15) 80%,
+    rgba(255, 255, 255, 0.45) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Pointer-following light that tints the glass with the active accent */
+.liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    160px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--a1) / 0.22),
+    rgb(var(--a2) / 0.08) 45%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.liquid-glass:hover::after,
+.liquid-glass:focus-within::after,
+.liquid-glass[data-lit='true']::after {
+  opacity: 1;
+}
+/* Keep real content above the pseudo layers (zero specificity so
+   utilities like `absolute` on a child still win) */
+:where(.liquid-glass) > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Denser glass for floating panels (menus, personalize sheet) */
+.glass-panel {
+  background: linear-gradient(180deg, rgba(20, 22, 30, 0.72), rgba(10, 11, 16, 0.82));
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* ------------------------------------------------------------------ */
+/* Accent helpers                                                      */
+/* ------------------------------------------------------------------ */
+.text-accent-gradient {
+  background-image: linear-gradient(
+    100deg,
+    rgb(var(--a1)) 0%,
+    rgb(var(--a2)) 35%,
+    rgb(var(--a3)) 65%,
+    rgb(var(--a1)) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: pan 7s linear infinite;
+}
+.accent-dot {
+  background: conic-gradient(from 180deg, rgb(var(--a1)), rgb(var(--a2)), rgb(var(--a3)), rgb(var(--a1)));
+}
+
+/* Film grain for a cinematic finish */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  animation: grain 1.2s steps(6) infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion                                                              */
+/* ------------------------------------------------------------------ */
+.reveal {
+  animation: rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: var(--d, 0ms);
+}
+.letter {
+  display: inline-block;
+  animation: letter 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: var(--d, 0ms);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.35s ease;
+}
+.letter:hover {
+  transform: translateY(-0.08em) rotate(-3deg);
+}
+.swoosh path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.4s cubic-bezier(0.65, 0, 0.35, 1) 1.5s forwards;
+}
+.aurora-a {
+  animation: drift-a 18s ease-in-out infinite alternate;
+}
+.aurora-b {
+  animation: drift-b 22s ease-in-out infinite alternate;
+}
+.shake {
+  animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+.pop {
+  animation: pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 9999px;
+  animation: spark 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 1.5px solid rgb(var(--a1) / 0.7);
+  animation: ring 2s ease-out infinite;
+  pointer-events: none;
+}
+.sheet-in {
+  animation: sheet 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+.float-slow {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes letter {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em) rotate(8deg);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes pan {
+  to {
+    background-position: -220% 0;
+  }
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes drift-a {
+  from {
+    transform: translate3d(-10%, -6%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(12%, 8%, 0) scale(1.25);
+  }
+}
+@keyframes drift-b {
+  from {
+    transform: translate3d(8%, 10%, 0) scale(1.15);
+  }
+  to {
+    transform: translate3d(-14%, -8%, 0) scale(0.95);
+  }
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3%, 2%); }
+  40% { transform: translate(2%, -3%); }
+  60% { transform: translate(-2%, -1%); }
+  80% { transform: translate(3%, 3%); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(3px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes spark {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0.2);
+  }
+}
+@keyframes ring {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+@keyframes sheet {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Honour the OS setting and the in-app "Animations" switch */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0.001ms !important;
+}
