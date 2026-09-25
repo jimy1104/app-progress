@@ -256,9 +256,21 @@
     }
   }
 
+  // Área, cargo y usuario se recuerdan solo en esta pestaña (nunca la
+  // contraseña), para que un error de contraseña no obligue a empezar de nuevo.
+  var PASO_KEY = 'gl_ingreso_paso';
+  function recordarPaso(extra) {
+    try {
+      var p = JSON.parse(sessionStorage.getItem(PASO_KEY) || '{}');
+      for (var k in extra) p[k] = extra[k];
+      sessionStorage.setItem(PASO_KEY, JSON.stringify(p));
+    } catch (e) {}
+  }
+
   function elegirCargo(cargo) {
     _cargo = cargo;
     document.getElementById('cargoDeclarado').value = cargo;
+    recordarPaso({ area: _area, cargo: cargo });
     actualizarBreadcrumb('Logística', cargo);
     irA('stepLogin');
     document.getElementById('username').focus();
@@ -267,7 +279,15 @@
   function actualizarBreadcrumb(area, cargo) {
     var tag = document.getElementById('breadcrumbTag');
     tag.textContent = cargo ? (area + ' · ' + cargo) : area;
+    tag.hidden = !tag.textContent;
   }
+
+  document.querySelectorAll('.ing-form').forEach(function (f) {
+    f.addEventListener('submit', function () {
+      var u = f.querySelector('input[name="username"]');
+      if (u) recordarPaso({ usuario: u.value });
+    });
+  });
 
   function abrirAdmin() {
     irA('stepAdmin');
@@ -287,6 +307,25 @@
   // Si hubo un error de usuario/contraseña, quedarse en el paso de login en
   // vez de reiniciar todo el flujo desde el paso de área.
   irA('stepLogin');
+  {% endif %}
+  {% if error %}
+  (function restaurarPaso() {
+    var p = {};
+    try { p = JSON.parse(sessionStorage.getItem(PASO_KEY) || '{}'); } catch (e) {}
+    if (p.area) _area = p.area;
+    if (p.cargo) {
+      _cargo = p.cargo;
+      document.getElementById('cargoDeclarado').value = p.cargo;
+      actualizarBreadcrumb('Logística', p.cargo);
+    } else {
+      actualizarBreadcrumb('', '');
+    }
+    if (p.usuario) {
+      ['username', 'adminUsuario'].forEach(function (id) { var i = document.getElementById(id); if (i) i.value = p.usuario; });
+      var pass = document.getElementById({{ ('adminPassword' if abrir_admin else 'password')|tojson }});
+      if (pass) pass.focus();
+    }
+  })();
   {% endif %}
 </script>
 </body>

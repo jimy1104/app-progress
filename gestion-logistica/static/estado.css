@@ -655,6 +655,7 @@ body.ingreso {
 .ing-recordada[hidden] { display: none; }
 .ing-muni-chip { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--rojo-tinte); border-radius: 12px; padding: 9px 12px; font-size: 13px; color: var(--est-tinta); animation: est-desliza 0.4s ease; }
 .ing-muni-chip[hidden] { display: none; }
+.breadcrumb-tag[hidden] { display: none; }
 .ing-muni-chip button { border: 0; background: none; color: var(--rojo); font: 700 13px/1 "Roboto", sans-serif; cursor: pointer; }
 .ing-muni-chip button:hover { text-decoration: underline; }
 
@@ -731,6 +732,8 @@ body.ingreso {
   .est-ayuda-burbuja { display: none; }
   .est-barras { gap: 10px; }
   body.ingreso { padding: 14px; }
+  .ing-boton { letter-spacing: 0.14em; white-space: nowrap; }
+  .ing-boton:hover { letter-spacing: 0.18em; }
 }
 
 /* ---------------------------------------------------------------------
