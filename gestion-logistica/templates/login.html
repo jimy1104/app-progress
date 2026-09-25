@@ -173,6 +173,9 @@
     document.getElementById(id).classList.add('active');
     var chip = document.getElementById('muniChip');
     chip.hidden = !(id !== 'stepMuni' && chip.dataset.ruc);
+    // Quien usa el teclado sigue donde corresponde: la primera opción del paso.
+    var primero = document.getElementById(id).querySelector('input:not([type="hidden"]), .area-card:not([disabled]), .ing-muni:not([hidden])');
+    if (primero) primero.focus({ preventScroll: true });
   }
 
   function volverA(id, saltarCargoSiNoAplica) {
