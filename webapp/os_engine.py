@@ -93,6 +93,7 @@ def _parecido(texto: str, ancla: str, umbral: float = UMBRAL_FUZZY) -> float:
 
 
 _ARTICULOS = ("LOS", "LAS", "DEL", "DE", "EN", "LA", "EL", "AL", "A", "Y", "CON", "POR", "SEGUN")
+_CLAUSULA = re.compile(r"^\W*\d{1,2}(\.\d{1,2})*\s*[.)\-:]?\s+\D")
 
 
 def _encabeza(texto: str, pos: int) -> bool:
@@ -338,6 +339,10 @@ def _titulos_de_pagina(pg) -> dict:
                     continue
                 # renglón donde está el título (en la cabecera unida, por los '|')
                 ln = cab[k - 1] if k > 0 else cab[min(len(cab) - 1, texto.count("|", 0, pos))]
+                # «14. DECLARACIÓN JURADA», «9. CARTA DE AUTORIZACIÓN»: una cláusula
+                # NUMERADA de otro documento (el TDR), no el título de un documento propio
+                if tipo in DEBILES and ln is not None and _CLAUSULA.match(ln.text or ""):
+                    continue
                 if ln is not None and ln.role in ("title", "sectionHeading"):
                     score = min(1.0, score + 0.1)       # Azure también lo ve como título
                 if tipo not in out or score > out[tipo][0]:
@@ -399,6 +404,7 @@ class Rasgos:
     membrete: set
     vocab: dict                      # tipo -> 0..1
     conf: float
+    menciona_tdr: bool = False       # la hoja dice «términos de referencia» en algún lado
 
 
 def _vocab(texto_c):
@@ -488,7 +494,7 @@ def _generico(pg):
 def rasgos_de(pg) -> Rasgos:
     vacia = _pagina_vacia(pg)
     if vacia:
-        return Rasgos(pg.number, True, {}, (0.0, ""), set(), None, False, False, set(), {}, 0.0)
+        return Rasgos(pg.number, True, {}, (0.0, ""), set(), None, False, False, set(), {}, 0.0, False)
     texto_n = normaliza(pg.text)
     m = _RE_PAG.search(texto_n)
     pag = (int(m.group(1)), int(m.group(2))) if m and 0 < int(m.group(1)) <= int(m.group(2)) <= 60 else None
@@ -496,9 +502,11 @@ def rasgos_de(pg) -> Rasgos:
                 for w in normaliza(l.text).split() if len(w) >= 4 and not w.isdigit()}
     confs = [l.conf for l in _lineas_cabecera(pg)]
     titulos, generico = _titulos_de_pagina(pg), _generico(pg)
+    texto_c = _compacta(pg.text)
     return Rasgos(pg.number, False, titulos, generico, _numeros(pg, titulos, generico), pag,
                   bool(_RE_VIENEN.search(texto_n)), bool(_RE_VAN.search(texto_n)), membrete,
-                  _vocab(_compacta(pg.text)), sum(confs) / len(confs) if confs else 0.0)
+                  _vocab(texto_c), sum(confs) / len(confs) if confs else 0.0,
+                  bool(_parecido(texto_c, "TERMINOSDEREFERENCIA", 0.90)))
 
 
 def _similar(a: set, b: set) -> float:
@@ -543,6 +551,10 @@ def _t(r: Rasgos, tipo):
 
 def _puntaje_inicio(r: Rasgos, prev: Optional[Rasgos], tipo: str, actual: Optional[str]) -> float:
     P = PESOS
+    # Una hoja que sigue a un TDR y lo menciona es CONTINUACIÓN del TDR, aunque traiga
+    # «declaración jurada» o «informe» en una cláusula (regla heredada de la v4).
+    if actual == "tdr" and tipo in DEBILES and r.menciona_tdr:
+        return -50.0
     s = -P["nuevo"]
     if tipo == "otro":
         s += -P["otro"] + P["generico"] * r.generico[0]
@@ -590,7 +602,8 @@ def _puntaje_sigue(r: Rasgos, prev: Optional[Rasgos], tipo: str, k: int,
         # alcanzó a leer el título: la penalidad se atenúa
         s -= P["sin_membrete"] * (1.0 - _similar(r.membrete, prev.membrete))
     # un título fuerte de otro tipo en esta hoja: difícilmente es continuación
-    otros = [v[0] for t, v in r.titulos.items() if t != tipo]
+    otros = [v[0] for t, v in r.titulos.items()
+             if t != tipo and not (tipo == "tdr" and t in DEBILES and r.menciona_tdr)]
     if r.generico[0] >= 0.9 and not _t(r, tipo):
         otros.append(r.generico[0])          # «CARTA N° 010-2026» bien destacado
     if otros:

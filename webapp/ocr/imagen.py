@@ -223,9 +223,11 @@ def des_girar90_bbox(bbox, grados: int):
 
 
 # ------------------------------------------------------------ hoja en blanco --
-def tinta_util(limpia: np.ndarray) -> float:
+def tinta_util(limpia: np.ndarray, dpi: float = DPI_OCR) -> float:
     """Fracción de la hoja (sin márgenes) cubierta por tinta verdadera, contando
-    solo manchas del tamaño de una letra o más (no polvo ni puntitos)."""
+    solo manchas del tamaño de una letra o más (no polvo ni puntitos). Los
+    tamaños mínimos se escalan con la resolución de la imagen."""
+    esc = dpi / 300.0
     h, w = limpia.shape
     m = limpia[int(h * 0.03): int(h * 0.97), int(w * 0.03): int(w * 0.97)]
     neg = (m < 110).astype(np.uint8)
@@ -236,13 +238,13 @@ def tinta_util(limpia: np.ndarray) -> float:
         return 0.0
     areas = stats[1:, cv2.CC_STAT_AREA]
     alto = stats[1:, cv2.CC_STAT_HEIGHT]
-    utiles = areas[(areas >= 25) & (alto >= 8)]
+    utiles = areas[(areas >= max(4, 25 * esc * esc)) & (alto >= max(3, 8 * esc))]
     return float(utiles.sum()) / float(m.size)
 
 
-def es_blanca(limpia: np.ndarray, umbral: float = None) -> bool:
+def es_blanca(limpia: np.ndarray, umbral: float = None, dpi: float = DPI_OCR) -> bool:
     umbral = UMBRAL_BLANCA if umbral is None else umbral
-    return tinta_util(limpia) < umbral
+    return tinta_util(limpia, dpi) < umbral
 
 
 # ----------------------------------------------------------------- códigos ---
@@ -281,15 +283,36 @@ def a_jpg(img: np.ndarray, calidad: int = 92) -> bytes:
 
 
 # -------------------------------------------------------------- variantes ----
-def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0):
+def dpi_seguro(page, dpi=DPI_OCR, max_mpx=36.0) -> int:
+    """Baja la resolución en hojas enormes (planos A1/A0) para no agotar la memoria:
+    una hoja A4 a 300 DPI son ~8,7 megapíxeles; un A1 serían ~70."""
+    area_in2 = abs(page.rect.width * page.rect.height) / (72.0 * 72.0) or 1.0
+    tope = (max_mpx * 1e6 / area_in2) ** 0.5
+    return int(max(72, min(dpi, tope)))
+
+
+def preparar_ligero(page, dpi=150) -> dict:
+    """Lo mínimo para toda hoja: ¿tiene tinta de verdad? (a 150 DPI, 4 veces más
+    barato). La preparación completa a 300 DPI solo se hace en las hojas que se
+    van a releer."""
+    dpi = dpi_seguro(page, dpi)
+    rgb = render(page, dpi, color=True)
+    limpia = suprimir_transparencia(aplanar_fondo(a_gris(rgb)))
+    tinta = tinta_util(limpia, dpi)
+    return {"en_blanco": tinta < UMBRAL_BLANCA, "tinta": round(tinta, 5),
+            "color": round(hay_color(rgb), 4), "dpi_origen": dpi_origen(page)}
+
+
+def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0, qr=False):
     """Todo lo que el OCR necesita de una hoja, calculado una sola vez.
 
     Devuelve dict con:
       limpia     gris aplanado y sin transparencias (lectura principal)
       sin_sellos igual, pero sin tinta de color (None si la hoja no tiene color)
       inv        matriz para des-rotar coordenadas (None si no se enderezó)
-      angulo, en_blanco, tinta, color, dpi_origen, qr
+      angulo, en_blanco, tinta, color, dpi_origen, dpi, qr (solo si qr=True)
     """
+    dpi = dpi_seguro(page, dpi)
     rgb = render(page, dpi, color=True)
     if giro:                                     # hoja escaneada de costado / de cabeza
         rgb = girar90(rgb, giro)
@@ -305,7 +328,8 @@ def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0):
         limpia, inv = rotar(limpia, ang)
         if sin_sellos is not None:
             sin_sellos, _ = rotar(sin_sellos, ang)
-    tinta = tinta_util(limpia)
+    tinta = tinta_util(limpia, dpi)
     return {"limpia": limpia, "sin_sellos": sin_sellos, "inv": inv, "angulo": ang,
             "en_blanco": tinta < UMBRAL_BLANCA, "tinta": round(tinta, 5), "color": round(frac_color, 4),
-            "dpi_origen": dpi_origen(page), "qr": leer_qr(gris) if tinta >= UMBRAL_BLANCA else []}
+            "dpi_origen": dpi_origen(page), "dpi": dpi,
+            "qr": leer_qr(gris) if (qr and tinta >= UMBRAL_BLANCA) else []}

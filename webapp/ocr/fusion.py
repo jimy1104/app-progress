@@ -89,10 +89,24 @@ class _Rejilla:
 
 
 # ---------------------------------------------------------------- fusión ---
-def _votar(grupo: List[OCRWord]) -> OCRWord:
-    """grupo: una palabra por lectura, todas en el mismo sitio."""
+# Lecturas que NO son independientes entre sí: «limpia» y «sin_sellos» son el mismo
+# motor sobre casi la misma imagen (solo cambian los píxeles de los sellos). Si ambas
+# se equivocan igual, eso no confirma nada. Solo cuenta como voto distinto una
+# lectura de otro grupo (el escaneo original, el PDF completo de Azure, el texto nativo).
+GRUPO = {"limpia": "imagen-limpia", "sin_sellos": "imagen-limpia"}
+
+
+def _grupo(lectura):
+    return GRUPO.get(lectura or "", lectura or "original")
+
+
+def _votar(grupo: List[OCRWord], grupos=None) -> OCRWord:
+    """grupo: una palabra por lectura, todas en el mismo sitio. grupos: a qué grupo
+    de lecturas independientes pertenece cada una (misma longitud)."""
     if len(grupo) == 1:
         return grupo[0]
+    grupos = grupos or [str(i) for i in range(len(grupo))]
+    de = {id(w): g for w, g in zip(grupo, grupos)}
     pesos = {}
     for w in grupo:
         pesos.setdefault(_clave(w.text), []).append(w)
@@ -101,15 +115,22 @@ def _votar(grupo: List[OCRWord]) -> OCRWord:
     total = sum(x.conf for x in grupo) or 1.0
     a_favor = sum(x.conf for x in ganadores)
     c = ganadores[0].conf
-    if len(ganadores) >= 2:
-        # lecturas no del todo independientes (mismo motor): se suma con prudencia
-        c = c + (1.0 - c) * 0.5 * ganadores[1].conf
+    # un voto por GRUPO independiente (lo mejor de cada grupo)
+    por_grupo = {}
+    for x in ganadores:
+        g = de.get(id(x))
+        if g not in por_grupo or x.conf > por_grupo[g].conf:
+            por_grupo[g] = x
+    independientes = sorted(por_grupo.values(), key=lambda x: -x.conf)
+    if len(independientes) >= 2:
+        # aun así mismo motor: se suma con prudencia
+        c = c + (1.0 - c) * 0.5 * independientes[1].conf
     en_contra = total - a_favor
     if en_contra > 0:
         c = c * (1.0 - 0.5 * en_contra / total)
     w0 = ganadores[0]
     return OCRWord(text=w0.text, conf=round(min(0.995, c), 4), bbox=w0.bbox, page=w0.page,
-                   votos=sum(max(1, x.votos) for x in ganadores))
+                   votos=len(independientes))
 
 
 def fusionar(lecturas: List[OCRPage], iou_min: float = 0.35) -> OCRPage:
@@ -126,14 +147,15 @@ def fusionar(lecturas: List[OCRPage], iou_min: float = 0.35) -> OCRPage:
     palabras_otras = []
     for o in otras:
         ws = [w for ln in o.lines for w in ln.words]
-        palabras_otras.append((ws, _Rejilla(ws), [False] * len(ws)))
+        palabras_otras.append((ws, _Rejilla(ws), [False] * len(ws), _grupo((o.meta or {}).get("lectura"))))
+    g_base = _grupo((base.meta or {}).get("lectura"))
 
     lineas = []
     for ln in base.lines:
         nuevas = []
         for w in ln.words:
-            grupo = [w]
-            for ws, rej, usados in palabras_otras:
+            grupo, grupos = [w], [g_base]
+            for ws, rej, usados, g_otra in palabras_otras:
                 mejor, mi = 0.0, -1
                 for i in rej.cerca(w.bbox):
                     if usados[i]:
@@ -144,13 +166,14 @@ def fusionar(lecturas: List[OCRPage], iou_min: float = 0.35) -> OCRPage:
                 if mi >= 0 and mejor >= iou_min:
                     usados[mi] = True
                     grupo.append(ws[mi])
+                    grupos.append(g_otra)
                 elif mi >= 0:
                     # la otra lectura partió/juntó la palabra distinto: no se vota,
                     # pero tampoco se agregará luego como palabra «nueva»
                     for i in rej.cerca(w.bbox):
                         if not usados[i] and cubre(ws[i].bbox, w.bbox) > 0.5:
                             usados[i] = True
-            nuevas.append(_votar(grupo))
+            nuevas.append(_votar(grupo, grupos))
         lineas.append(_linea(nuevas, ln.page, role=ln.role, manuscrita=ln.manuscrita,
                              bbox=ln.bbox, texto=None if ln.words else ln.text, conf=ln.conf))
 
@@ -158,7 +181,7 @@ def fusionar(lecturas: List[OCRPage], iou_min: float = 0.35) -> OCRPage:
     ocupadas = [w for ln in lineas for w in ln.words]
     rej_base = _Rejilla(ocupadas) if ocupadas else None
     extra = []
-    for ws, _, usados in palabras_otras:
+    for ws, _, usados, _g in palabras_otras:
         for i, w in enumerate(ws):
             if usados[i] or w.conf < 0.5 or not w.text.strip():
                 continue

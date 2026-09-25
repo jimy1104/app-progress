@@ -79,7 +79,9 @@ class ClienteSimulado:
                                          spans=[NS(offset=ini_linea, length=largo)]))
                 content = content[:-1] + "\n"
             pw, ph = (w0, h0) if girar else (W, H)
-            pages.append(NS(page_number=i + 1, width=pw, height=ph, unit="inch", angle=0.0,
+            # en el papel SIN girar, el texto de una hoja con /Rotate r está girado -r
+            ang = float(((-page.rotation + 180) % 360) - 180) if girar else 0.0
+            pages.append(NS(page_number=i + 1, width=pw, height=ph, unit="inch", angle=ang,
                             words=words, lines=lines, barcodes=[], spans=[]))
         doc.close()
         return _Poller(NS(content=content, pages=pages, paragraphs=paragraphs, styles=[],

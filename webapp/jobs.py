@@ -271,9 +271,14 @@ def _run(jid):
         _set(jid, estado="procesando", etapa="ocr", t_ocr=time.time(),
              etapa_txt="Leyendo el expediente con " + motor)
         provider = get_provider()
+        ETAPAS = ["Azure está leyendo todas las hojas", "Revisando qué hojas quedaron dudosas",
+                  "Releyendo las hojas dudosas con la imagen limpia y sin sellos", "Lectura terminada"]
         def _avance(hechas, total, pagina):
-            _set(jid, etapa_txt=(f"Leyendo el expediente: página {hechas} de {total}"
-                                 if total else "Leyendo el expediente"))
+            if pagina is None:          # el proveedor informa etapas, no páginas
+                txt = ETAPAS[min(hechas, len(ETAPAS) - 1)] if total == len(ETAPAS) - 1 else "Leyendo el expediente"
+            else:
+                txt = f"Leyendo el expediente: página {hechas} de {total}" if total else "Leyendo el expediente"
+            _set(jid, etapa_txt=txt)
         import inspect
         acepta = "progreso" in inspect.signature(provider.analyze).parameters
         doc = provider.analyze(pdf_path(jid), progreso=_avance) if acepta else provider.analyze(pdf_path(jid))
@@ -291,7 +296,7 @@ def _run(jid):
             try:
                 from ocr.pdf_buscable import hacer_buscable
                 with hacer_buscable(pdf_path(jid), doc) as bd:
-                    bd.save(buscable_path(jid), garbage=3, deflate=True)
+                    bd.save(buscable_path(jid), garbage=1, deflate=True)
                 buscable = buscable_path(jid)
             except Exception:
                 traceback.print_exc()
@@ -309,7 +314,7 @@ def _run(jid):
         anio = ctx["anio"] or datetime.now(store.PE).year
         previos = store.acumulado_previo(clave, anio, ctx["os"]) if clave else []
         ctx_eng = {"monto": ctx["monto"],
-                   "monto_fuente": ctx["monto_fuente"] if ctx.get("monto_validado", True) else "estimado",
+                   "monto_fuente": ctx["monto_fuente"] if ctx.get("monto_validado") is not False else "estimado",
                    "objeto": clave,
                    "objeto_txt": ctx["objeto"], "monto_linea": ctx["monto_linea"]}
         verificados = []

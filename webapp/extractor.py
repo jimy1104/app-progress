@@ -197,6 +197,8 @@ def validar(doc, segmentos, ctx):
         return [ln for s in segs for p in range(s.pagina_ini, s.pagina_fin + 1) for ln in doc.pages[p - 1].lines]
 
     orden = lineas_de("orden_servicio")
+    if not orden:       # misma regla de respaldo que extraer_contexto (primeras hojas)
+        orden = [ln for p in _paginas_orden(doc, segmentos)[:3] for ln in doc.pages[p - 1].lines]
     conf = lineas_de("conformidad", solo_primero=False)
     fact = lineas_de("comprobante_pago", solo_primero=False)
 
@@ -223,6 +225,8 @@ def validar(doc, segmentos, ctx):
             if any(abs(v - c) < 0.01 for c in montos_conf):
                 fuentes["conformidad"] = v
         votos = Counter(fuentes.values())
+    # monto_validado: True = dos o más fuentes coinciden; None = una sola fuente (no hay
+    # contradicción: se usa como antes); False = las fuentes se CONTRADICEN (no se confía)
     if votos:
         ganador, n = votos.most_common(1)[0]
         confirman = [k for k, v in fuentes.items() if abs(v - ganador) < 0.01]
@@ -231,14 +235,21 @@ def validar(doc, segmentos, ctx):
                         "detalle": "coinciden: " + ", ".join(confirman)})
             if abs((ctx.get("monto") or 0) - ganador) >= 0.01:
                 val[-1]["corregido_de"] = ctx.get("monto")
+                # el renglón a resaltar debe mostrar el monto confirmado, no el mal leído
+                ctx["monto_linea"] = next((ln for ln in orden if any(abs(v - ganador) < 0.01
+                                                                      for v in _montos_linea(ln))), None)
             ctx["monto"], ctx["monto_fuente"] = ganador, "orden"
             ctx["monto_validado"] = True
+        elif len(fuentes) >= 2:
+            val.append({"dato": "monto", "estado": "en conflicto", "valor": ctx.get("monto"),
+                        "detalle": "las fuentes no coinciden: " + "; ".join(f"{k} {v:,.2f}" for k, v in fuentes.items())})
+            ctx["monto_validado"] = False
         else:
             val.append({"dato": "monto", "estado": "sin confirmar", "valor": ctx.get("monto"),
-                        "detalle": "solo una fuente: " + ", ".join(fuentes) if fuentes else "no leído"})
-            ctx["monto_validado"] = False
+                        "detalle": "solo una fuente: " + ", ".join(fuentes)})
+            ctx["monto_validado"] = None
     else:
-        ctx["monto_validado"] = False
+        ctx["monto_validado"] = None
 
     # ---------------- RUC del proveedor: dígito verificador + otras fuentes -----
     cands = Counter()
@@ -274,8 +285,23 @@ def validar(doc, segmentos, ctx):
 
     # ---------------- N° de orden citado en la conformidad ----------------------
     if ctx.get("os") and conf:
-        txt = re.sub(r"\D", "", " ".join(ln.text for ln in conf if "ORDEN" in _n(ln.text) or re.search(r"\d{4}", ln.text)))
-        if ctx["os"].lstrip("0") and ctx["os"].lstrip("0") in txt:
+        os_n = ctx["os"].lstrip("0")
+        citadas = set()
+        for i, ln in enumerate(conf):
+            if "ORDEN" not in _n(ln.text):
+                continue
+            # el número va en el mismo renglón o en el de al lado («N° DE ORDEN | 2026-105 59»)
+            for cand in [ln] + conf[i + 1:i + 3]:
+                t = re.sub(r"(?<=\d)[\s\-]+(?=\d)", "", cand.text)    # «2026-105 59» -> «202610559»
+                for d in re.findall(r"\d{3,14}", t):
+                    d0 = d.lstrip("0")
+                    if re.fullmatch(r"20[1-3]\d\d{3,8}", d):          # año pegado: 2026 + 10559
+                        citadas.add(d[4:].lstrip("0"))
+                    citadas.add(d0)
+        if os_n and os_n in citadas:
             val.append({"dato": "orden", "estado": "confirmado", "valor": ctx["os"],
                         "detalle": "la conformidad cita la misma orden"})
+        elif citadas:
+            val.append({"dato": "orden", "estado": "en conflicto", "valor": ctx["os"],
+                        "detalle": "la conformidad cita otro número: " + ", ".join(sorted(citadas)[:3])})
     return val

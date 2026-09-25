@@ -178,7 +178,7 @@ function extras(ver){
       ${blanca?`background:repeating-linear-gradient(45deg,#fff,#fff 3px,${c}33 3px,${c}33 6px);color:${c};border:1px dashed ${c}`:`background:${c};color:#fff`};${p.rol==='inicio'?'box-shadow:inset 0 3px 0 rgba(0,0,0,.35)':''}">${p.pagina}</a>`;}).join('');
   const descargas=`${RES.buscable?`<a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/buscable.pdf')}">⬇ Expediente buscable (PDF con texto)</a>`:''}
      <a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/texto.txt')}">⬇ Todo el texto leído (.txt)</a>`;
-  const EST={'confirmado':['✓','var(--ok)'],'corregido':['✎','var(--amber)'],'dudoso':['?','var(--red)'],'sin confirmar':['?','var(--amber)'],'lectura descartada':['✗','var(--muted)']};
+  const EST={'confirmado':['✓','var(--ok)'],'corregido':['✎','var(--amber)'],'dudoso':['?','var(--red)'],'sin confirmar':['?','var(--amber)'],'en conflicto':['!','var(--red)'],'lectura descartada':['✗','var(--muted)']};
   const vals=(RES.validaciones||[]).map(v=>{const e=EST[v.estado]||['·','var(--muted)'];
     return `<div class="rsub" style="margin-top:4px"><b style="color:${e[1]}">${e[0]} ${esc(v.dato)} ${esc(v.estado)}</b>${v.valor!=null?' — '+esc(v.dato==='monto'?money(v.valor):v.valor):''}${v.corregido_de?` (se leyó «${esc(v.dato==='monto'?money(v.corregido_de):v.corregido_de)}»)`:''} · ${esc(v.detalle||'')}</div>`;}).join('');
   const cortes=(RES.cortes||[]).map(x=>`<a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/corte/'+x.i)}">⬇ ${esc(x.etiqueta)} (pág. ${x.pagina_ini}–${x.pagina_fin})</a>`).join(' ');

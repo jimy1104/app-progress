@@ -51,11 +51,21 @@ def test_fusion_coinciden_y_discrepan():
     a = _pag([("ORDEN", 0.80, (0.1, 0.1, 0.2, 0.12)), ("0010559", 0.60, (0.25, 0.1, 0.35, 0.12))])
     b = _pag([("ORDEN", 0.85, (0.1, 0.1, 0.2, 0.12)), ("0010558", 0.40, (0.25, 0.1, 0.35, 0.12)),
               ("SELLO", 0.90, (0.7, 0.5, 0.8, 0.52))])
+    a.meta, b.meta = {"lectura": "original"}, {"lectura": "limpia"}
     f = fusion.fusionar([a, b])
     ws = {w.text: w for ln in f.lines for w in ln.words}
     assert ws["ORDEN"].votos == 2 and ws["ORDEN"].conf > 0.85           # coinciden: sube
     assert "0010559" in ws and ws["0010559"].conf < 0.60                 # discrepan: baja
     assert "SELLO" in ws                                                 # solo la vio una: se agrega
+
+
+def test_fusion_lecturas_correlacionadas_no_son_dos_votos():
+    """Revisión: «limpia» y «sin_sellos» son el mismo motor sobre casi la misma imagen;
+    si ambas leen igual un dato dudoso, eso no lo vuelve seguro."""
+    a = _pag([("0010558", 0.60, (0.25, 0.1, 0.35, 0.12))]); a.meta = {"lectura": "limpia"}
+    b = _pag([("0010558", 0.60, (0.25, 0.1, 0.35, 0.12))]); b.meta = {"lectura": "sin_sellos"}
+    w = fusion.fusionar([a, b]).lines[0].words[0]
+    assert w.votos == 1 and not calidad.segura(w)
 
 
 def test_calidad_no_cuenta_hojas_en_blanco_ni_firmas():
@@ -141,6 +151,23 @@ def _escaneo(titulo, cuerpo="", rotate=0, de_costado=0):
     if rotate:
         p2.set_rotation(rotate)
     return out
+
+
+def test_clausulas_numeradas_no_parten_el_tdr():
+    """Revisión: «14. DECLARACION JURADA» o «9. CARTA DE AUTORIZACION» dentro de un TDR
+    no abren un documento nuevo (ni hacen pasar por presente un documento que no obra)."""
+    cuerpo = [_linea("El proveedor cumplira lo indicado en los terminos de referencia y la entidad", 0.3 + i * 0.02)
+              for i in range(8)]
+    tdr = lambda n: _hoja(n, [_linea("GERENCIA DE PRUEBA SUBGERENCIA DEL PROGRAMA", 0.05),
+                               _linea("TERMINOS DE REFERENCIA", 0.1, alto=0.016, x0=0.35)] + cuerpo)
+    sin_membrete = lambda n, clausula: _hoja(n, [_linea(clausula, 0.08),
+                                                _linea("Presentar al BANCO la cuenta CCI segun los terminos de referencia", 0.12)] + cuerpo)
+    conf = _hoja(5, [_linea("MUNICIPALIDAD DE PRUEBA", 0.05),
+                     _linea("CONFORMIDAD DE SERVICIOS N 055-2026-MP", 0.1, x0=0.3)] + cuerpo)
+    doc = OCRDocument("prueba", "x", [tdr(1), tdr(2), sin_membrete(3, "14. DECLARACION JURADA"),
+                                      sin_membrete(4, "9. CARTA DE AUTORIZACION"), conf])
+    segs = [(s.tipo, s.pagina_ini, s.pagina_fin) for s in os_engine.segmentar(doc)]
+    assert segs == [("tdr", 1, 4), ("conformidad", 5, 5)], segs
 
 
 @lenta

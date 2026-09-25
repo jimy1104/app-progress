@@ -231,8 +231,8 @@ def expediente_buscable(u, jid):
 def expediente_texto(u, jid):
     m = _job_propio(u, jid)
     if not os.path.exists(jobs.ocr_path(jid)): abort(404)
-    return Response(jobs.texto(jid), mimetype="text/plain; charset=utf-8",
-                    headers={"Content-Disposition": f"attachment; filename=\"{os.path.splitext(m['archivo'])[0]}_texto.txt\""})
+    return send_file(io.BytesIO(jobs.texto(jid).encode("utf-8")), mimetype="text/plain; charset=utf-8",
+                     as_attachment=True, download_name=f"{os.path.splitext(m['archivo'])[0]}_texto.txt")
 
 @app.get("/api/jobs/<jid>/corte/<int:i>")
 @requiere()

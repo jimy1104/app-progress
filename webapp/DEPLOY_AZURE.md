@@ -35,9 +35,15 @@ Portal de Azure → tu App Service → **Configuration → General settings → 
 | `ADMIN_MASTER_CODE` | **la contraseña maestra que tú inventes** (mín. 12 caracteres). Es la que pide el login de administrador. |
 | `SECRET_KEY` | un texto largo al azar (40+ caracteres). Firma las sesiones. |
 | `SCM_DO_BUILD_DURING_DEPLOYMENT` | `true` |
-| `OCR_MIN_CONF` | `0.90` (opcional) — por debajo de esto la página se vuelve a leer |
-| `OCR_RELECTURA` | `1` (opcional) — `0` desactiva la relectura en alta resolución |
+| `AZURE_DI_FEATURES` | `ocrHighResolution,barcodes` (opcional) — complementos de Azure. `ocrHighResolution` lee mejor la letra chica y los escaneos pobres (**tiene costo adicional por página**, ver el paso 8.bis); `barcodes` lee los QR de las facturas (sin costo extra). Vacío = sin complementos. |
+| `OCR_OBJETIVO_PAGINA` | `0.95` (opcional) — una hoja con menos de este % de palabras seguras se vuelve a leer (y, si sigue abajo, se lista para revisarla a mano). Reemplaza a `OCR_MIN_CONF`. |
+| `OCR_CONF_SEGURA` | `0.85` (opcional) — confianza desde la que una palabra cuenta como segura |
+| `OCR_CONF_SEGURA_VOTADA` | `0.70` (opcional) — confianza mínima de una palabra confirmada por dos lecturas independientes |
+| `OCR_RELECTURA` | `1` (opcional) — `0` desactiva la segunda pasada (imagen limpia y sin sellos) |
 | `OCR_MAX_RELECTURAS` | `60` (opcional) — tope de páginas a releer por expediente |
+| `OCR_HOJAS_POR_LOTE` | `15` (opcional) — hojas por llamada en la segunda pasada |
+| `OCR_DPI` | `300` (opcional) — resolución de la imagen limpia que se envía en la segunda pasada |
+| `PDF_BUSCABLE` | `1` (opcional) — `0` no genera el PDF con capa de texto (los cortes salen del original) |
 | `OCR_PROVIDER` | `azure` (opcional) — `local` obliga a usar el OCR de la máquina. Si no se pone, usa Azure cuando hay endpoint y llave, y si no, el local. |
 
 **Save** → la app se reinicia. No agregues `OCR_FAKE_CACHE` (es solo para pruebas locales).
@@ -79,24 +85,52 @@ más de 24 h con un botón).
   Intelligence y **rota la key** del Storage, y pon las nuevas en el paso 3.
 - La contraseña maestra y `SECRET_KEY` solo viven en Application settings.
 
-## 8.bis  Calidad de lectura (OCR) — lo más importante para la exactitud
+## 8.bis  Calidad de lectura (OCR) y cortes — cómo funciona desde la v5
 
-El OCR ahora trabaja en **dos pasadas**: primero lee el PDF completo y después
-**vuelve a leer, una por una y en alta resolución (300 y 400 DPI), las páginas
-que quedaron por debajo del 90%**, quedándose con la mejor lectura. Por eso
-tarda más a propósito.
+**Lectura (Azure Document Intelligence, `prebuilt-layout`):**
+1. **1ª pasada**: el PDF completo en UNA llamada, con `ocrHighResolution` y `barcodes`.
+   Azure devuelve además el **rol** de cada párrafo (título, encabezado, pie) y marca lo
+   **manuscrito** (firmas, vistos buenos); el segmentador usa ambos.
+2. En paralelo, cada hoja se revisa a 150 DPI: si no tiene **tinta real** es un reverso en
+   blanco (aunque se transparente el texto del otro lado) y lo que Azure «leyó» ahí se
+   descarta. Las hojas **digitales** (texto nativo real, no la capa de Nitro) se toman tal cual.
+3. **2ª pasada**, solo para hojas con palabras dudosas: se envían en lotes (no una llamada por
+   hoja) como imagen de **300 DPI limpia** (fondo aplanado, sin el reverso transparentado) y,
+   si tienen sellos de color, también **sin sellos**.
+4. **Fusión palabra por palabra**: donde dos lecturas independientes coinciden, la palabra
+   queda confirmada; donde discrepan, su confianza baja y la hoja se señala.
+5. **Hojas de costado o de cabeza** se llevan al marco derecho del texto (Azure informa el
+   ángulo); «Ubicar» dibuja la hoja derecha.
 
-**El límite real está en el escaneo, no en el programa.** Tus expedientes vienen
-a **~96 DPI** (793×1122 píxeles por hoja A4), la mitad de lo recomendado. Medido
-sobre el expediente 10559, una orden con sellos pasó de **47% a 77%** al releerla
-en alta resolución, pero no se puede recuperar el detalle que el escáner nunca
-capturó. **Si configuran el escáner a 300 DPI en blanco y negro o escala de
-grises, la lectura sube sola y de forma pareja**; ese cambio vale más que
-cualquier ajuste del programa. Con 96 DPI, el 98% no es alcanzable en las hojas
-con sellos y firmas; con 300 DPI es un objetivo razonable.
+**Qué significa «lectura OCR X%»:** el % de palabras de TEXTO que quedaron **seguras** (alta
+confianza o confirmadas por dos lecturas). Ya no cuenta manchas de reversos, firmas ni
+esquinas de sellos, que no son texto. Las hojas que no llegan al objetivo se listan para
+mirarlas: el sistema no esconde una duda.
 
-La pantalla de resultados y el Excel indican cuántas páginas se releyeron y
-**cuáles siguen por debajo del umbral**, para revisarlas a mano.
+**Datos clave con validación cruzada:** el monto de la orden se da por bueno solo si coinciden
+dos fuentes (TOTAL, valor venta + IGV, monto en letras, conformidad); el RUC se verifica con su
+dígito verificador (SUNAT) y se contrasta con la conformidad y la factura; el N° de orden se
+contrasta con el que cita la conformidad. Un monto en conflicto no alimenta el acumulado.
+
+**Cortes:** una decisión global sobre todas las hojas (programación dinámica) con la evidencia de
+cada una: títulos con sus señales propias, «Página k de N», «VIENEN/VAN» del SIGA, el N° del
+documento, el membrete que se repite o que desaparece. Los documentos fuera del catálogo salen
+como «Otro documento: <título>» en vez de engordar el corte vecino. Cada documento indica sus
+reversos en blanco y se marca «revisar corte» si la frontera tuvo poca evidencia.
+
+**Descargas nuevas:** expediente **buscable** (PDF con capa de texto; los cortes también salen
+buscables) y **todo el texto** leído hoja por hoja (.txt).
+
+**Costo:** `ocrHighResolution` se cobra aparte por página; la 2ª pasada suma 1–2 páginas por
+cada hoja dudosa (tope `OCR_MAX_RELECTURAS`). Para abaratar: `AZURE_DI_FEATURES=barcodes` o
+`OCR_RELECTURA=0` (se pierde exactitud).
+
+**El límite sigue estando en el escaneo:** los expedientes llegan en JPEG a **96 DPI**. Escanear
+a **300 DPI en escala de grises** sube la lectura en todas las hojas, con cualquier motor.
+
+**Medir:** `python benchmark.py carpeta/` compara lectura y cortes contra una verdad de campo
+(`<expediente>.verdad.json`, ver el encabezado de `benchmark.py`). Los expedientes reales de
+prueba se guardan en `tests/muestras/` (está en `.gitignore`: nunca van al repositorio).
 
 ## 9. Qué esperar del resultado (léelo antes de juzgarlo)
 - **Rojo** = confirmado: se revisó dos veces con lectura clara (p. ej. un documento que no

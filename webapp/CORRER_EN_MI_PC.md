@@ -61,8 +61,15 @@ En una PC de oficina de 4–8 núcleos baja a **1–2 minutos**.
 Si quieres ajustarlo, antes de `python app.py` en el `.bat` puedes agregar:
 
     set OCR_CONCURRENCIA=6      (cuántas páginas lee a la vez; por defecto 4)
-    set OCR_DPI=220             (resolución de la primera pasada)
-    set OCR_RELECTURA=0         (desactiva la relectura en alta resolución: más rápido, menos exacto)
+    set OCR_DPI=300             (resolución de la imagen limpia que se lee)
+    set OCR_RELECTURA=0         (solo lee la imagen limpia: más rápido, menos exacto)
+
+Desde la v5 cada hoja se limpia antes de leerla (fondo aplanado, sin el texto del reverso,
+enderezada, girada si se escaneó de costado); las hojas en blanco se detectan por la tinta y no
+se leen; las hojas dudosas se leen también sin sellos y desde el escaneo original, y las
+lecturas se fusionan palabra por palabra. Cada Tesseract usa un solo hilo interno: antes, con
+hilos anidados, una hoja podía tardar 15 minutos. Hace falta `opencv-python-headless`
+(ya está en `requirements-local.txt`).
 
 ## 6. Varios expedientes de una vez
 

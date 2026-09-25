@@ -43,6 +43,7 @@ def escribir_capa(page, ocr_page):
     W, H = page.rect.width, page.rect.height
     derot = page.derotation_matrix
     giro = (ocr_page.meta or {}).get("giro", 0)
+    forma = page.new_shape()        # todas las palabras en UN solo flujo de contenido
     for ln in ocr_page.lines:
         for w in (ln.words or []):
             txt = (w.text or "").strip()
@@ -55,10 +56,11 @@ def escribir_capa(page, ocr_page):
             # la línea base, en coordenadas de la hoja SIN girar (así las pide el PDF)
             base = pymupdf.Point(x0, y1 - alto * 0.2) * derot
             try:
-                page.insert_text(base, txt, fontsize=fs, fontname="helv", render_mode=3,
-                                 rotate=page.rotation)
+                forma.insert_text(base, txt, fontsize=fs, fontname="helv", render_mode=3,
+                                  rotate=page.rotation)
             except Exception:
                 continue
+    forma.commit()
 
 
 def hacer_buscable(pdf_path, ocr_doc, paginas=None) -> pymupdf.Document:

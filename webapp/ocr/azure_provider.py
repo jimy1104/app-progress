@@ -24,7 +24,7 @@ Tarda más que una sola llamada, a propósito: el objetivo es la exactitud.
 Costo: la 2ª pasada solo toca hojas flojas (tope OCR_MAX_RELECTURAS).
 """
 from __future__ import annotations
-import io, os, bisect, time
+import io, os, re, bisect, time
 from concurrent.futures import ThreadPoolExecutor
 import pymupdf
 from .base import OCRWord, OCRLine, OCRPage, OCRDocument, OCRProvider
@@ -95,20 +95,28 @@ class AzureDocIntelligenceProvider(OCRProvider):
         kw = dict(locale=self.locale, content_type=content_type)
         if features:
             kw["features"] = features
-        for intento in range(4):
+        ultimo = None
+        for intento in range(5):
             try:
                 poller = self.client.begin_analyze_document(self.modelo, body=io.BytesIO(datos), **kw)
                 return poller.result()
             except Exception as e:
+                ultimo = e
                 msg = f"{type(e).__name__}: {e}"
-                # el recurso no admite algún complemento (p. ej. nivel gratuito): sin complementos
-                if features and ("feature" in msg.lower() or "InvalidArgument" in msg or "400" in msg):
-                    kw.pop("features", None); features = []
-                    continue
-                if ("429" in msg or "Too Many" in msg or "timeout" in msg.lower()) and intento < 3:
-                    time.sleep(2 * (intento + 1) ** 2)
+                codigo = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
+                # 1º saturación / tiempo: se espera y se reintenta (con los mismos complementos)
+                if codigo == 429 or "429" in msg or "Too Many" in msg or "timeout" in msg.lower():
+                    if intento < 4:
+                        time.sleep(2 * (intento + 1) ** 2)
+                        continue
+                    raise
+                # 2º el recurso no admite un complemento (p. ej. nivel gratuito): sin complementos
+                if kw.get("features") and (codigo == 400 or codigo is None) and \
+                        re.search(r"feature|InvalidParameter|UnsupportedFeature|InvalidArgument", msg, re.I):
+                    kw.pop("features", None)
                     continue
                 raise
+        raise ultimo
 
     def _a_paginas(self, resultado, orientaciones=None, mapa=None, dims=None):
         """AnalyzeResult -> [OCRPage]. 'mapa' traduce el número de página del
@@ -136,8 +144,8 @@ class AzureDocIntelligenceProvider(OCRProvider):
             tot = dentro = 0
             for sp in spans or []:
                 tot += sp.length
-                i = bisect.bisect_right(ini_man, sp.offset) - 1
-                while i >= 0 and i < len(manus) and manus[i][0] < sp.offset + sp.length:
+                i = max(0, bisect.bisect_right(ini_man, sp.offset) - 1)
+                while i < len(manus) and manus[i][0] < sp.offset + sp.length:
                     a, b = manus[i]
                     dentro += max(0, min(b, sp.offset + sp.length) - max(a, sp.offset))
                     i += 1
@@ -150,6 +158,11 @@ class AzureDocIntelligenceProvider(OCRProvider):
             ori = (orientaciones or {}).get(numero)
             apaisada = pw > ph
             conv = (lambda b: ori.a_vista(b, apaisada)) if ori else (lambda b: b)
+            # el ángulo del texto lo mide Azure en SU marco; si las coordenadas se
+            # llevaron del papel sin girar a la vista, el ángulo también gira /Rotate
+            angulo = float(getattr(pg, "angle", 0) or 0)
+            if ori and ori.rot and apaisada != (ori.W > ori.H):
+                angulo = (angulo + ori.rot + 180.0) % 360.0 - 180.0
             palabras = list(pg.words or [])
             offs = [(w.span.offset if getattr(w, "span", None) else -1) for w in palabras]
             orden = sorted(range(len(palabras)), key=lambda i: offs[i])
@@ -176,37 +189,51 @@ class AzureDocIntelligenceProvider(OCRProvider):
                        for b in (getattr(pg, "barcodes", None) or [])]
             W, H = (ori.W, ori.H) if ori else (dims or {}).get(numero, (pw, ph))
             paginas.append(OCRPage(number=numero, width_pt=W, height_pt=H, rotation=0, lines=lineas,
-                                   meta={"angulo_azure": float(getattr(pg, "angle", 0) or 0),
-                                         "codigos": codigos}))
+                                   meta={"angulo_azure": angulo, "codigos": codigos}))
         return paginas
 
     # ------------------------------------------------------- preparación -----
     def _preparar_todas(self, pdf_path, n):
+        """1ª fase (mientras Azure lee): texto nativo y hoja en blanco, barato (150 DPI).
+        Un error en una hoja no tumba el expediente: esa hoja queda con lo de Azure."""
         def una(i):
-            with pymupdf.open(pdf_path) as d:
-                page = d[i - 1]
-                diag = nativo.diagnostico(page)
-                nat = nativo.leer(page, i) if diag["solo_texto"] else None
-                prep = imagen.preparar(page, self.dpi, enderezar=False)
-                # en memoria solo quedan JPEG (~0,5 MB por hoja), no las matrices de
-                # 300 DPI (~17 MB): un expediente de 44 hojas cabe en un App Service B1
-                for v in ("limpia", "sin_sellos"):
-                    img = prep.pop(v, None)
-                    prep[v] = None if (img is None or prep["en_blanco"]) else imagen.a_jpg(img, 90)
-                prep.pop("inv", None)
-                return i, diag, nat, prep
+            try:
+                with pymupdf.open(pdf_path) as d:
+                    page = d[i - 1]
+                    diag = nativo.diagnostico(page)
+                    nat = nativo.leer(page, i) if diag["solo_texto"] else None
+                    return i, diag, nat, imagen.preparar_ligero(page)
+            except Exception as e:
+                return i, {}, None, {"en_blanco": False, "error": f"{type(e).__name__}: {e}"[:200]}
         out = {}
         with ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 2))) as pool:
             for i, diag, nat, prep in pool.map(una, range(1, n + 1)):
                 out[i] = (diag, nat, prep)
         return out
 
-    def _pdf_de_imagenes(self, hojas, variante, preps, dims):
+    def _variantes(self, pdf_path, hojas):
+        """2ª fase, SOLO para las hojas que se releen: imagen limpia y sin sellos a
+        300 DPI, guardadas como JPEG (~0,5 MB por hoja, no ~17 MB en memoria)."""
+        def una(i):
+            try:
+                with pymupdf.open(pdf_path) as d:
+                    prep = imagen.preparar(d[i - 1], self.dpi, enderezar=False)
+                return i, {v: (None if prep.get(v) is None else imagen.a_jpg(prep[v], 90))
+                           for v in ("limpia", "sin_sellos")}
+            except Exception:
+                return i, {"limpia": None, "sin_sellos": None}
+        out = {}
+        with ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 2))) as pool:
+            for i, v in pool.map(una, hojas):
+                out[i] = v
+        return out
+
+    def _pdf_de_imagenes(self, hojas, variante, variantes, dims):
         """Arma un PDF con la variante pedida de cada hoja (en escala de grises)."""
         out = pymupdf.open()
         mapa = {}
         for k, n in enumerate(hojas, start=1):
-            jpg = preps[n][2][variante]
+            jpg = variantes[n][variante]
             W, H = dims[n]
             pg = out.new_page(width=W, height=H)
             pg.insert_image(pg.rect, stream=jpg)
@@ -215,18 +242,18 @@ class AzureDocIntelligenceProvider(OCRProvider):
         out.close()
         return datos, mapa
 
-    def _releer(self, hojas, preps, dims):
+    def _releer(self, hojas, variantes, dims):
         """2ª pasada en lotes: {hoja: [lecturas]}."""
         trabajos = []
         for variante in ("limpia", "sin_sellos"):
-            cand = [n for n in hojas if preps[n][2].get(variante) is not None]
+            cand = [n for n in hojas if variantes.get(n, {}).get(variante) is not None]
             for i in range(0, len(cand), self.hojas_por_lote):
                 trabajos.append((variante, cand[i:i + self.hojas_por_lote]))
         resultado = {}
 
         def uno(t):
             variante, lote = t
-            datos, mapa = self._pdf_de_imagenes(lote, variante, preps, dims)
+            datos, mapa = self._pdf_de_imagenes(lote, variante, variantes, dims)
             res = self._analizar(datos, "application/pdf")
             pags = self._a_paginas(res, mapa=mapa, dims=dims)
             for p in pags:
@@ -241,7 +268,8 @@ class AzureDocIntelligenceProvider(OCRProvider):
 
     # ---------------------------------------------------------------- API ----
     def analyze(self, pdf_path: str, progreso=None) -> OCRDocument:
-        """progreso: función opcional (hechas, total, pagina) para informar avance."""
+        """progreso: función opcional (hechas, total, pagina). Aquí avanza por ETAPAS
+        (pagina=None): 0 lectura de Azure, 1 hojas dudosas, 2 relectura, 3 listo."""
         with pymupdf.open(pdf_path) as d:
             n = d.page_count
             orient = {i + 1: _Orientacion(d[i]) for i in range(n)}
@@ -269,15 +297,15 @@ class AzureDocIntelligenceProvider(OCRProvider):
             diag, nat, prep = preps[i]
             pg = paginas.get(i) or OCRPage(number=i, width_pt=dims[i][0], height_pt=dims[i][1],
                                            rotation=0, lines=[])
-            meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco")}
-            if i in giros:
+            meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco", "error") if k in prep}
+            if i in giros and nat is None:        # el texto nativo ya viene en el marco de la vista
                 meta["giro"] = giros[i]
-            meta.update({"fuente": "ocr", "lecturas": ["original"], "qr": prep.get("qr", []),
+            meta.update({"fuente": "ocr", "lecturas": ["original"],
                          "codigos": pg.meta.get("codigos", []), "angulo_azure": pg.meta.get("angulo_azure", 0)})
             if nat is not None:
                 pg = nat
                 meta.update({"fuente": "texto-nativo", "lecturas": ["nativo"], "en_blanco": False})
-            elif prep["en_blanco"]:
+            elif prep.get("en_blanco"):
                 # reverso transparentado: solo sobrevive lo que es texto claro de verdad
                 pg.lines = [l for l in pg.lines if l.conf >= 0.85 and len(l.text.strip()) >= 4]
                 meta["en_blanco"] = not pg.lines
@@ -287,20 +315,22 @@ class AzureDocIntelligenceProvider(OCRProvider):
         releidas, mejoradas = [], []
         if self.relectura:
             flojas = [p for p in paginas.values()
-                      if p.meta.get("fuente") == "ocr" and not p.meta.get("en_blanco")
+                      if p.meta.get("fuente") == "ocr" and not p.meta.get("en_blanco") and p.lines
                       and (calidad.calidad_pagina(p)["pct"] or 0) < self.objetivo]
             flojas.sort(key=lambda p: calidad.calidad_pagina(p)["pct"] or 0)
             hojas = [p.number for p in flojas[:self.max_relecturas]]
             if hojas:
                 if progreso:
                     progreso(2, 3, None)
-                extra = self._releer(hojas, preps, dims)
+                variantes = self._variantes(pdf_path, hojas)
+                extra = self._releer(hojas, variantes, dims)
                 for h in hojas:
                     otras = [o.girar(giros.get(h, 0)) for o in extra.get(h, [])]
                     if not otras:
                         continue
                     base = paginas[h]
                     antes = calidad.calidad_pagina(base)["pct"] or 0
+                    base.meta["lectura"] = "original"
                     nueva = fusion.fusionar([base] + otras)
                     nueva.meta = dict(base.meta)
                     nueva.meta["lecturas"] = ["original"] + [o.meta.get("lectura") for o in otras]

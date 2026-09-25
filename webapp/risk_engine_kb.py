@@ -232,7 +232,9 @@ def detectar(doc, kb, familia, accumulator=None, contexto=None, segmentos=None, 
                 if any(norm(a) in rn for a in anclas) or re.search(r"\b" + key + r"\b", rn):
                     objetivo=anclas; clave_doc=key; break
             tipo_seg = SEG_DE_ANCLA.get(clave_doc)
-            seg_doc = next((sg for sg in (segmentos or []) if tipo_seg and sg.tipo == tipo_seg), None)
+            # el atajo solo vale con un corte firme; si el segmentador dudó, se busca como antes
+            seg_doc = next((sg for sg in (segmentos or []) if tipo_seg and sg.tipo == tipo_seg
+                            and not getattr(sg, "revisar", False)), None)
             if objetivo and seg_doc is not None:
                 # el segmentador ya lo ubicó como documento propio: obra en el expediente
                 nivel = None
