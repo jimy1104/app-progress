@@ -1,0 +1,44 @@
+--- static/styles.css	2026-09-25 14:15:36.000586755 +0000
++++ static/styles.css	2026-09-26 08:41:28.548658107 +0000
+@@ -481,3 +481,41 @@
+ @media (max-width: 640px) { .rz-card { padding: 10px 12px; } .rz-ficha { grid-template-columns: 1fr 1fr; } }
+ .field label.check-label { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer; }
+ .field label.check-label input { min-width: 0; width: 16px; height: 16px; padding: 0; flex: none; }
++
++/* ───────────── Mapa del expediente: qué es cada hoja ───────────── */
++.rz-mapa2 { margin: 18px 0 8px; }
++.rz-mapa2 h4 { margin: 0 0 4px; font-size: 15px; }
++.rz-tiles { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
++.rz-tile { position: relative; width: 36px; height: 44px; border-radius: 6px; border: 0; cursor: pointer;
++  background: var(--c); color: #fff; font: 700 13px/44px inherit; font-family: inherit; text-align: center;
++  box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); transition: transform .12s ease, box-shadow .12s ease; }
++.rz-tile.primera::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; border-radius: 6px 6px 0 0;
++  background: rgba(0,0,0,.35); }
++.rz-tile.blanco { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 18%, #fff) 0 4px, #fff 4px 8px);
++  color: var(--c); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 45%, transparent); }
++.rz-tile.suelta { background: var(--border-soft); color: var(--text-muted); }
++.rz-tile:hover, .rz-tile:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 14px -6px var(--c); z-index: 5; }
++/* la ficha que aparece al pasar el puntero */
++.rz-tile::after { content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 8px); transform: translate(-50%, -4px);
++  width: max-content; max-width: min(420px, 80vw); padding: 10px 12px; border-radius: 10px; background: #111827; color: #F9FAFB;
++  font: 500 12.5px/1.45 inherit; font-family: inherit; text-align: left; white-space: pre-line; box-shadow: 0 14px 30px -10px rgba(0,0,0,.5);
++  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .15s ease, transform .15s ease; z-index: 30; }
++.rz-tile:hover::after, .rz-tile:focus-visible::after { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
++.rz-docs { display: grid; gap: 10px; margin-top: 10px; }
++.rz-doc { border: 1px solid var(--border-soft); border-left: 5px solid var(--c); border-radius: 10px; padding: 10px 14px; background: var(--card); }
++.rz-doc header { display: flex; align-items: flex-start; gap: 10px; }
++.rz-doc header > div { flex: 1; min-width: 0; }
++.rz-doc h5 { margin: 0 0 2px; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
++.rz-doc-color { width: 12px; height: 12px; border-radius: 3px; background: var(--c); margin-top: 4px; flex: none; }
++.rz-doc-datos { display: grid; grid-template-columns: max-content 1fr; gap: 5px 14px; margin: 10px 0 2px; font-size: 13px; }
++.rz-doc-datos dt { color: var(--text-muted); font-weight: 600; white-space: nowrap; }
++.rz-doc-datos dd { margin: 0; overflow-wrap: anywhere; }
++.rz-doc-marcado { animation: rzMarca 1.4s ease; }
++@keyframes rzMarca { 0% { box-shadow: 0 0 0 0 var(--c); } 30% { box-shadow: 0 0 0 4px var(--c); } 100% { box-shadow: 0 0 0 0 transparent; } }
++@media (max-width: 640px) { .rz-doc-datos { grid-template-columns: 1fr; } .rz-doc-datos dt { margin-top: 4px; } }
++.rz-leido { cursor: help; border-bottom: 1px dotted currentColor; margin-left: 4px; }
++.rz-tile.tip-izq::after { left: 0; transform: translate(0, -4px); }
++.rz-tile.tip-izq:hover::after, .rz-tile.tip-izq:focus-visible::after { transform: translate(0, 0); }
++.rz-tile.tip-der::after { left: auto; right: 0; transform: translate(0, -4px); }
++.rz-tile.tip-der:hover::after, .rz-tile.tip-der:focus-visible::after { transform: translate(0, 0); }
++.rz-nada { color: var(--text-muted); font-style: italic; }

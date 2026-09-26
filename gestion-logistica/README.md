@@ -43,3 +43,27 @@ permisos**.
 | `static/estado.css`, `static/estado.js`, `static/marca.svg` | Nuevos |
 | `templates/*.html` | Nueva estructura, mismos IDs y funciones |
 | `app/server_login.patch` | Ruta `/login`: lista de municipalidades y registro de la elegida |
+
+## Ficha de cada documento del expediente (OCR enfocado)
+
+Al pasar el puntero por una hoja del **Mapa del expediente** se ve el título
+completo tal como está impreso («INFORME N° 132-2026-MPC/GPS/SGPVL»,
+«MEMORANDO N° 2809-2026-MPC-OGAF-OLG»…), el asunto, quién lo envía y a quién
+(nombre y cargo), la fecha, las firmas y los sellos. Debajo del mapa, una
+tarjeta por documento muestra lo mismo con el detalle de cada lectura.
+
+- `app/riesgo/ficha.py` (nuevo): relee a 300 ppp la cabecera y el pie de cada
+  documento con Tesseract, corrige las siglas con las que enseña el propio
+  expediente (membretes y citas), completa números escritos a mano con las
+  citas de otros documentos, lee A / DE / ASUNTO / REFERENCIA / FECHA aunque
+  un sello tape la etiqueta, reconoce firmas (sello de firma o pie de firma,
+  con DNI si lo hay) y sellos (recepción, proveído, folio, visto bueno) con
+  oficina, fecha y hora.
+- `patches/servicio.patch`: `analizar_expediente` guarda `documentos` (con su
+  ficha) y `mapa` en el registro del análisis.
+- `patches/app_js.patch`, `patches/styles_css.patch`: mapa de hojas con ficha
+  flotante y tarjetas de documentos.
+
+Requiere `tesseract-ocr` y `tesseract-ocr-spa` en el servidor, más
+`pytesseract` y `numpy` (ya en `requirements.txt`). Sin Tesseract se usa solo
+el texto del escáner y la ficha sale menos completa.

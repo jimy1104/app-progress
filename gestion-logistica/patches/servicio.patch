@@ -1,0 +1,90 @@
+--- app/riesgo/servicio.py	2026-09-25 14:15:35.991115522 +0000
++++ app/riesgo/servicio.py	2026-09-26 08:35:16.052859996 +0000
+@@ -173,7 +173,7 @@
+ 
+ 
+ # ─────────────────────────────────────────────────── hojas para «Ubicar»
+-def _guardar_hojas(mu_doc, dest, resultados, maximo=30, doc=None):
++def _guardar_hojas(mu_doc, dest, resultados, maximo=30, doc=None, extra=None):
+     """Guarda la imagen de cada hoja donde hay evidencia. Una hoja impresa en
+     horizontal que se leyó girada se guarda girada igual, para que el
+     recuadro de «Ubicar» caiga donde corresponde (ver lectura._ocr_girado)."""
+@@ -185,9 +185,13 @@
+             p = int(u.get("pagina") or 0)
+             if p and p not in pags:
+                 pags.append(p)
++    # la primera hoja de cada documento, para abrirla desde el mapa
++    for p in extra or []:
++        if p and p not in pags:
++            pags.append(p)
+     carpeta = Path(dest) / "_riesgo"
+     guardadas = []
+-    for p in pags[:maximo]:
++    for p in pags[:maximo + len(extra or [])]:
+         try:
+             carpeta.mkdir(parents=True, exist_ok=True)
+             giro = 0
+@@ -207,6 +211,23 @@
+     return guardadas
+ 
+ 
++def _mapa_paginas(doc, segs):
++    """Qué es cada hoja: a qué documento pertenece (índice en «documentos»),
++    si es su primera hoja y si es un reverso en blanco."""
++    out = []
++    for n in range(1, doc.n_pages + 1):
++        idx = next((i for i, s in enumerate(segs) if s.pagina_ini <= n <= s.pagina_fin), -1)
++        if idx < 0:
++            # reversos en blanco que quedaron fuera del corte: van con el documento anterior
++            idx = max((i for i, s in enumerate(segs) if s.pagina_fin < n), default=-1)
++        try:
++            blanco = segmentador._pagina_vacia(doc.pages[n - 1])
++        except Exception:
++            blanco = False
++        out.append({"p": n, "doc": idx, "primera": any(s.pagina_ini == n for s in segs), "blanco": blanco})
++    return out
++
++
+ # ──────────────────────────────────────────────────────── ANÁLISIS
+ def _resumen(resultados):
+     c = {k: 0 for k in CLASIFICACIONES}
+@@ -253,6 +274,17 @@
+     meta = meta or {}
+     segs = segmentador.segmentar(doc)
+     ctx_ocr = extractor.extraer_contexto(doc, segs, archivo)
++    # La ficha de cada documento (título completo, A/DE/ASUNTO, firmas y
++    # sellos) para el mapa del expediente. Nunca tumba el análisis.
++    documentos = [dataclasses.asdict(s) for s in segs]
++    try:
++        from . import ficha as ficha_mod
++        for d_, f_ in zip(documentos, ficha_mod.fichas(doc, segs, mu_doc=mu_doc)):
++            d_["titulo"] = f_.get("titulo") or d_.get("etiqueta")
++            d_["ficha"] = f_
++    except Exception as e:
++        print(f"[aviso] No se pudieron leer las fichas de los documentos: {type(e).__name__}: {e}")
++    mapa = _mapa_paginas(doc, segs)
+ 
+     if fila:
+         ruc = str(fila.get("ruc") or "")
+@@ -293,8 +325,9 @@
+         "contexto": {k: v for k, v in ctx.items() if k not in ("cci_linea",)},
+         "lectura": {"proveedor": doc.provider, "paginas": doc.n_pages,
+                     "confianza": round(clasificador.motor._conf_prom(doc), 3),
+-                    **{k: v for k, v in (getattr(doc, "meta", {}) or {}).items()}},
+-        "documentos": [dataclasses.asdict(s) for s in segs],
++                    **{k: v for k, v in (getattr(doc, "meta", {}) or {}).items() if k != "lectura_enfocada"}},
++        "documentos": documentos,
++        "mapa": mapa,
+         "hojas": [], "resultados": [],
+     }
+ 
+@@ -315,7 +348,8 @@
+                     "comentario": "", "historial": [{"t": _ahora(), "usuario": usuario or "sistema",
+                                                      "accion": "Detectado al cortar el expediente"}]}
+         registro["resultados"] = resultados
+-        registro["hojas"] = _guardar_hojas(mu_doc, dest, resultados, doc=doc)
++    registro["hojas"] = _guardar_hojas(mu_doc, dest, registro["resultados"], doc=doc,
++                                       extra=[s.pagina_ini for s in segs])
+     registro["resumen"] = _resumen(registro["resultados"])
+ 
+     with _lock:

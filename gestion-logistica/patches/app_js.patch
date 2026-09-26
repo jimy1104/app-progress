@@ -1,0 +1,156 @@
+--- static/app.js	2026-09-25 14:15:36.000506003 +0000
++++ static/app.js	2026-09-26 08:41:28.548658107 +0000
+@@ -2369,21 +2369,143 @@
+     document.getElementById('rzCuerpo').innerHTML = html;
+   }
+ 
+-  // Los documentos que el programa reconoció en el escaneo, en orden, con
+-  // sus páginas: sirve para ver de un vistazo cómo se leyó el expediente y
+-  // dónde buscar cada cosa.
++  // MAPA DEL EXPEDIENTE — qué es cada hoja, sin abrirla. Cada color es un
++  // documento; la raya de arriba marca su primera hoja; las rayadas son
++  // reversos en blanco. Al pasar el puntero se ve el título completo
++  // («INFORME N° 132-2026-MPC/GPS/SGPVL»), asunto, de / a, fecha, firmas y
++  // sellos. Clic: abre la hoja (si se guardó) y marca su ficha abajo.
++  var COLORES_DOC = ['#2F6FDB', '#16A34A', '#D97706', '#9333EA', '#DC2626', '#0891B2', '#65A30D',
++    '#DB2777', '#4F46E5', '#B45309', '#0D9488', '#7C3AED'];
++
++  function fechaLegible(iso) {
++    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
++    if (!m) return iso || '';
++    var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
++    return Number(m[3]) + ' de ' + meses[Number(m[2]) - 1] + ' de ' + m[1];
++  }
++
++  function personaHtml(p) {
++    if (!p) return '';
++    return '<strong>' + escapaHtml([p.trato, p.nombre].filter(Boolean).join(' ')) + '</strong>' +
++      (p.cargo ? '<br><span class="rz-mini">' + escapaHtml(p.cargo) + '</span>' : '');
++  }
++
++  function fichaDocumentoHtml(x, i, d) {
++    var f = x.ficha || {}, c = f.campos || {};
++    var pags = x.pagina_ini === x.pagina_fin ? 'pág. ' + x.pagina_ini : 'págs. ' + x.pagina_ini + '–' + x.pagina_fin;
++    var color = COLORES_DOC[i % COLORES_DOC.length];
++    var h = '<article class="rz-doc" id="rzDoc_' + i + '" style="--c:' + color + '">' +
++      '<header><span class="rz-doc-color"></span><div><h5>' + escapaHtml(x.titulo || x.etiqueta || x.tipo) + '</h5>' +
++      '<span class="rz-mini">' + escapaHtml(x.etiqueta || '') + ' · ' + pags +
++      (f.titulo_nota ? ' · <em title="' + escapaHtml(f.titulo_nota) + '">✔ ' + escapaHtml(f.titulo_nota) + '</em>' : '') + '</span></div>' +
++      ((d.hojas || []).indexOf(x.pagina_ini) >= 0
++        ? '<button class="rz-pag" onclick="verHojaMapa(\'' + jsStr(d.clave) + '\',' + x.pagina_ini + ')">📄 Ver hoja</button>' : '') +
++      '</header>';
++    var filas = [];
++    if (c.asunto) filas.push(['Asunto', escapaHtml(c.asunto)]);
++    if (c.de) filas.push(['De', personaHtml(c.de)]);
++    if (c.a) filas.push(['A', personaHtml(c.a)]);
++    if (c.referencia && c.referencia.length) filas.push(['Referencia', c.referencia.map(escapaHtml).join('<br>')]);
++    if (c.fecha_iso || c.fecha) filas.push(['Fecha', escapaHtml(c.fecha_iso ? fechaLegible(c.fecha_iso) : c.fecha)]);
++    Object.keys(f.datos || {}).forEach(function (k) { filas.push([escapaHtml(k), escapaHtml(f.datos[k])]); });
++    (f.firmas || []).forEach(function (fi) {
++      filas.push(['✍️ Firma', '<strong>' + escapaHtml(fi.nombre) + '</strong>' +
++        (fi.cargo ? ' — ' + escapaHtml(fi.cargo) : '') +
++        (fi.oficina && (fi.cargo || '').toLowerCase().indexOf(fi.oficina.toLowerCase().slice(4)) < 0 ? ', ' + escapaHtml(fi.oficina) : '') +
++        (fi.dni ? ' · DNI ' + escapaHtml(fi.dni) : '') +
++        '<br><span class="rz-mini">' + escapaHtml(fi.como || '') + ' · pág. ' + (fi.paginas || [fi.pagina]).join(', ') +
++        (fi.nota ? ' · ' + escapaHtml(fi.nota) : '') + '</span>']);
++    });
++    (f.sellos || []).forEach(function (se) {
++      var tieneDatos = se.oficina || se.fecha || se.hora || se.numero || (se.oficinas || []).length;
++      if (se.tipo === 'folio' && !tieneDatos) return;      // un folio ilegible no aporta
++      var tipo = { 'recepción': '📥 Sello de recepción', 'proveído': '↪️ Proveído', 'visto bueno': '✅ Visto bueno',
++        'folio': '🔢 Sello de folio', 'sello': '🏛️ Sello de oficina' }[se.tipo] || 'Sello';
++      var partes = [];
++      if (se.oficinas && se.oficinas.length) partes.push(se.oficinas.map(escapaHtml).join(' · '));
++      else if (se.oficina) partes.push(escapaHtml(se.oficina));
++      if (se.fecha) partes.push(escapaHtml(fechaLegible(se.fecha)));
++      if (se.hora) partes.push(escapaHtml(se.hora));
++      if (se.numero) partes.push('N° ' + escapaHtml(se.numero));
++      filas.push([tipo, (partes.join(' · ') || '<em class="rz-nada">sin datos legibles</em>') +
++        '<br><span class="rz-mini">pág. ' + (se.paginas || [se.pagina]).join(', ') +
++        (se.fecha ? ' · fecha leída del sello' : '') +
++        (se.texto ? ' <span class="rz-leido" title="Lo que se leyó en el sello: ' + escapaHtml(se.texto) + '">ⓘ lectura</span>' : '') + '</span>']);
++    });
++    if (filas.length) {
++      h += '<dl class="rz-doc-datos">' + filas.map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>';
++    }
++    return h + '</article>';
++  }
++
+   function mapaExpedienteHtml(d) {
+     var docs = d.documentos || [];
+     if (!docs.length) return '';
+-    return '<details class="rz-det rz-mapa"><summary>🗂️ Documentos reconocidos en el expediente (' + docs.length + ')</summary>' +
+-      '<table class="rz-tabla"><thead><tr><th>Págs.</th><th>Documento</th></tr></thead><tbody>' +
+-      docs.map(function (x) {
+-        var pags = x.pagina_ini === x.pagina_fin ? String(x.pagina_ini) : x.pagina_ini + '–' + x.pagina_fin;
+-        return '<tr><td class="mono">' + pags + '</td><td>' + escapaHtml(x.etiqueta || x.tipo || '') + '</td></tr>';
+-      }).join('') + '</tbody></table>' +
+-      '<p class="rz-mini">Las páginas que no figuran son reversos en blanco o continuaciones del documento anterior.</p></details>';
++    var total = (d.lectura && d.lectura.paginas) || Math.max.apply(null, docs.map(function (x) { return x.pagina_fin; }));
++    var mapa = d.mapa || [];
++    if (!mapa.length) {       // expedientes analizados antes de esta versión
++      for (var n = 1; n <= total; n++) {
++        var k = docs.findIndex(function (x) { return x.pagina_ini <= n && n <= x.pagina_fin; });
++        mapa.push({ p: n, doc: k, primera: docs.some(function (x) { return x.pagina_ini === n; }), blanco: false });
++      }
++    }
++    var fichas = '<div class="rz-docs">' + docs.map(function (x, i) { return fichaDocumentoHtml(x, i, d); }).join('') + '</div>';
++    var tiles = mapa.map(function (m) {
++      var x = docs[m.doc];
++      var color = m.doc >= 0 ? COLORES_DOC[m.doc % COLORES_DOC.length] : '#94A3B8';
++      var tip = 'Pág. ' + m.p + (m.blanco ? ' · reverso en blanco' : '') + '\n';
++      if (x) {
++        tip += (m.primera ? '' : '(continúa) ') + ((x.ficha && x.ficha.resumen) || x.titulo || x.etiqueta || '');
++      } else {
++        tip += 'Sin documento reconocido';
++      }
++      var cls = 'rz-tile' + (m.primera ? ' primera' : '') + (m.blanco ? ' blanco' : '') + (m.doc < 0 ? ' suelta' : '');
++      return '<button type="button" class="' + cls + '" style="--c:' + color + '" data-tip="' + escapaHtml(tip) + '"' +
++        ' aria-label="' + escapaHtml(tip.replace(/\n/g, ' · ')) + '"' +
++        ' onclick="clicMapa(\'' + jsStr(d.clave) + '\',' + m.p + ',' + m.doc + ')">' + m.p + '</button>';
++    }).join('');
++    return '<section class="rz-mapa2"><h4>Mapa del expediente — qué es cada hoja</h4>' +
++      '<p class="rz-mini">Cada color es un documento; la raya de arriba marca su primera hoja; las rayadas son reversos en blanco. ' +
++      'Pasa el puntero sobre una hoja para ver qué documento es (número completo, asunto, quién lo envía, firmas y sellos). Clic para abrirla.</p>' +
++      '<div class="rz-tiles">' + tiles + '</div>' +
++      '<div class="rz-hoja-caja" id="rzMapaHoja"></div>' +
++      '<details class="rz-det" open><summary>🗂️ Documentos reconocidos (' + docs.length + ') — con sus datos, firmas y sellos</summary>' + fichas + '</details>' +
++      '</section>';
+   }
+ 
++  // La ficha flotante se ancla al lado que tenga espacio, para no salirse
++  // del mapa ni de la ventana.
++  document.addEventListener('mouseover', function (e) {
++    var t = e.target.closest && e.target.closest('.rz-tile');
++    if (!t) return;
++    var r = t.getBoundingClientRect();
++    var caja = t.closest('.rz-mapa2');
++    var c = caja ? caja.getBoundingClientRect() : { left: 0, right: window.innerWidth };
++    var izq = Math.max(c.left, 0), der = Math.min(c.right, window.innerWidth);
++    t.classList.toggle('tip-izq', r.left - izq < 230);
++    t.classList.toggle('tip-der', der - r.right < 230);
++  });
++
++  window.clicMapa = function (clave, pagina, idx) {
++    var d = rzActual || {};
++    if ((d.hojas || []).indexOf(pagina) >= 0) window.verHojaMapa(clave, pagina);
++    var el = document.getElementById('rzDoc_' + idx);
++    if (el) {
++      el.classList.remove('rz-doc-marcado'); void el.offsetWidth; el.classList.add('rz-doc-marcado');
++      if ((d.hojas || []).indexOf(pagina) < 0) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
++    }
++  };
++
++  window.verHojaMapa = function (clave, pagina) {
++    var caja = document.getElementById('rzMapaHoja');
++    if (!caja) return;
++    if (caja.dataset.pagina === String(pagina) && caja.innerHTML) { caja.innerHTML = ''; caja.dataset.pagina = ''; return; }
++    caja.dataset.pagina = String(pagina);
++    caja.innerHTML = '<div class="rz-hoja"><img alt="Página ' + pagina + '" src="/api/riesgos/hoja?clave=' + encodeURIComponent(clave) + '&p=' + pagina + '"></div>' +
++      '<div class="rz-mini">Página ' + pagina + ' del expediente · clic en la misma hoja del mapa para cerrarla.</div>';
++    caja.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
++  };
++
+   function tarjetaRiesgo(d, r, abierta) {
+     var id = 'rz_' + r.id.replace(/[^A-Za-z0-9]/g, '_');
+     var fuente = r.fuente === 'seace' ? '<span class="rz-fuente">dato de SEACE</span>'
