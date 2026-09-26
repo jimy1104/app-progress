@@ -24,7 +24,7 @@ Tarda más que una sola llamada, a propósito: el objetivo es la exactitud.
 Costo: la 2ª pasada solo toca hojas flojas (tope OCR_MAX_RELECTURAS).
 """
 from __future__ import annotations
-import io, os, re, bisect, time
+import io, os, re, bisect, time, threading
 from concurrent.futures import ThreadPoolExecutor
 import pymupdf
 from .base import OCRWord, OCRLine, OCRPage, OCRDocument, OCRProvider
@@ -76,7 +76,14 @@ class AzureDocIntelligenceProvider(OCRProvider):
         self.relectura = os.getenv("OCR_RELECTURA", "1") != "0"
         self.max_relecturas = int(os.getenv("OCR_MAX_RELECTURAS", "60"))
         self.objetivo = calidad.OBJETIVO_PAGINA
-        self.hojas_por_lote = max(1, int(os.getenv("OCR_HOJAS_POR_LOTE", "15")))
+        # Tamaño de cada envío. El nivel GRATUITO (F0) solo acepta 4 MB por archivo y lee
+        # solo las 2 primeras hojas; el S0 acepta 500 MB. Con 4 MB y 10 hojas funciona en
+        # ambos: si Azure devuelve menos hojas de las enviadas, se reenvían las que faltan
+        # en grupos más chicos (se aprende sola la capacidad del recurso).
+        self.max_bytes = int(float(os.getenv("AZURE_DI_MAX_MB", "4")) * 1024 * 1024)
+        self.hojas_por_lote = max(1, int(os.getenv("AZURE_DI_HOJAS_POR_LLAMADA",
+                                                   os.getenv("OCR_HOJAS_POR_LOTE", "10"))))
+        self._lock = threading.Lock()
         # Las llamadas son independientes: se hacen en paralelo.
         # 4 a la vez va cómodo dentro de los límites del nivel S0 de Azure.
         self.concurrencia = max(1, int(os.getenv("OCR_CONCURRENCIA", "4")))
@@ -104,8 +111,11 @@ class AzureDocIntelligenceProvider(OCRProvider):
                 ultimo = e
                 msg = f"{type(e).__name__}: {e}"
                 codigo = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
-                # 1º saturación / tiempo: se espera y se reintenta (con los mismos complementos)
-                if codigo == 429 or "429" in msg or "Too Many" in msg or "timeout" in msg.lower():
+                # archivo demasiado grande para el recurso: lo resuelve quien parte los envíos
+                if _es_demasiado(msg):
+                    raise _Demasiado(msg) from e
+                # 1º saturación, tiempo o conexión cortada: se espera y se reintenta
+                if codigo == 429 or "429" in msg or "Too Many" in msg or _es_conexion(msg):
                     if intento < 4:
                         time.sleep(2 * (intento + 1) ** 2)
                         continue
@@ -228,6 +238,99 @@ class AzureDocIntelligenceProvider(OCRProvider):
                 out[i] = v
         return out
 
+    # --------------------------------------------------- envíos por trozos ----
+    def _leer_por_trozos(self, hojas, construir, orient=None, dims=None):
+        """Envía 'hojas' a Azure en trozos que el recurso acepte. construir(grupo, reducir)
+        arma el PDF de ese grupo (reducir > 0: imágenes más livianas). Devuelve
+        ({hoja: OCRPage}, {hoja: error})."""
+        leidas, errores = {}, {}
+        cola = [(hojas[i:i + self.hojas_por_lote], 0) for i in range(0, len(hojas), self.hojas_por_lote)]
+        while cola:
+            ola, cola = cola, []
+            with ThreadPoolExecutor(max_workers=min(self.concurrencia, len(ola))) as pool:
+                for pags, otra_vez, err in pool.map(lambda t: self._un_trozo(t[0], t[1], construir, orient, dims), ola):
+                    leidas.update((p.number, p) for p in pags)
+                    cola += otra_vez
+                    errores.update(err)
+        return leidas, errores
+
+    def _un_trozo(self, grupo, reducir, construir, orient, dims):
+        """Un envío. Devuelve (páginas leídas, trozos a reenviar, errores por hoja)."""
+        def partir():
+            m = len(grupo) // 2
+            return [], [(grupo[:m], reducir), (grupo[m:], reducir)], {}
+        try:
+            datos = construir(grupo, reducir)
+            if len(datos) > self.max_bytes:
+                raise _Demasiado(f"{len(datos) / 1048576:.1f} MB")
+            res = self._analizar(datos, "application/pdf")
+        except _Demasiado as e:
+            if len(grupo) > 1:
+                return partir()
+            if reducir < 3:                   # una hoja sola muy pesada: como imagen más liviana
+                return [], [(grupo, reducir + 1)], {}
+            return [], [], {grupo[0]: f"hoja demasiado grande para Azure: {e}"[:200]}
+        except Exception as e:
+            msg = f"{type(e).__name__}: {e}"
+            if _es_autorizacion(msg):
+                raise                          # llave o permisos: no tiene sentido seguir
+            if _es_conexion(msg):
+                if len(grupo) > 1:
+                    return partir()
+                if reducir < 3:
+                    return [], [(grupo, reducir + 1)], {}
+            return [], [], {h: msg[:200] for h in grupo}
+        mapa = {k + 1: h for k, h in enumerate(grupo)}
+        pags = [p for p in self._a_paginas(res, orientaciones=orient, mapa=mapa, dims=dims) if p.number in grupo]
+        vistas = {p.number for p in pags}
+        faltan = [h for h in grupo if h not in vistas]
+        if not faltan:
+            return pags, [], {}
+        if not vistas:
+            if len(grupo) > 1:
+                return pags, [([h], reducir) for h in faltan], {}
+            return pags, [], {grupo[0]: "Azure no devolvió esta hoja"}
+        # Azure leyó menos hojas de las enviadas (nivel gratuito F0: 2 por archivo):
+        # desde ahora los envíos van de ese tamaño y las que faltan se reenvían
+        with self._lock:
+            self.hojas_por_lote = max(1, min(self.hojas_por_lote, len(vistas)))
+        n = len(vistas)
+        return pags, [(faltan[i:i + n], reducir) for i in range(0, len(faltan), n)], {}
+
+    def _construir_pdf(self, pdf_path):
+        """Arma el PDF de un grupo de hojas del expediente. Con reducir > 0 cada hoja va
+        como imagen en gris, cada vez más liviana (para hojas que exceden el límite)."""
+        def construir(grupo, reducir):
+            with pymupdf.open(pdf_path) as src:
+                out = pymupdf.open()
+                for h in grupo:
+                    if not reducir:
+                        out.insert_pdf(src, from_page=h - 1, to_page=h - 1)
+                        continue
+                    page = src[h - 1]
+                    dpi = imagen.dpi_seguro(page, {1: 200, 2: 150}.get(reducir, 110))
+                    pg = out.new_page(width=page.rect.width, height=page.rect.height)
+                    pg.insert_image(pg.rect, stream=imagen.a_jpg(imagen.render(page, dpi), 85 - 10 * reducir))
+                datos = out.tobytes(garbage=1, deflate=True)
+                out.close()
+                return datos
+        return construir
+
+    def _construir_variante(self, variante, variantes, dims):
+        def construir(grupo, reducir):
+            out = pymupdf.open()
+            for n in grupo:
+                jpg = variantes[n][variante]
+                if reducir:
+                    jpg = _achicar_jpg(jpg, 0.75 ** reducir)
+                W, H = dims[n]
+                pg = out.new_page(width=W, height=H)
+                pg.insert_image(pg.rect, stream=jpg)
+            datos = out.tobytes(deflate=True)
+            out.close()
+            return datos
+        return construir
+
     def _pdf_de_imagenes(self, hojas, variante, variantes, dims):
         """Arma un PDF con la variante pedida de cada hoja (en escala de grises)."""
         out = pymupdf.open()
@@ -243,27 +346,20 @@ class AzureDocIntelligenceProvider(OCRProvider):
         return datos, mapa
 
     def _releer(self, hojas, variantes, dims):
-        """2ª pasada en lotes: {hoja: [lecturas]}."""
-        trabajos = []
+        """2ª pasada, en trozos que el recurso acepte: {hoja: [lecturas]}."""
+        resultado = {}
         for variante in ("limpia", "sin_sellos"):
             cand = [n for n in hojas if variantes.get(n, {}).get(variante) is not None]
-            for i in range(0, len(cand), self.hojas_por_lote):
-                trabajos.append((variante, cand[i:i + self.hojas_por_lote]))
-        resultado = {}
-
-        def uno(t):
-            variante, lote = t
-            datos, mapa = self._pdf_de_imagenes(lote, variante, variantes, dims)
-            res = self._analizar(datos, "application/pdf")
-            pags = self._a_paginas(res, mapa=mapa, dims=dims)
-            for p in pags:
+            if not cand:
+                continue
+            try:
+                leidas, _ = self._leer_por_trozos(cand, self._construir_variante(variante, variantes, dims),
+                                                  dims=dims)
+            except Exception:
+                continue                       # la relectura es un plus: nunca tumba el expediente
+            for p in leidas.values():
                 p.meta["lectura"] = variante
-            return pags
-
-        with ThreadPoolExecutor(max_workers=min(self.concurrencia, max(1, len(trabajos)))) as pool:
-            for pags in pool.map(lambda t: _seguro(uno, t), trabajos):
-                for p in pags or []:
-                    resultado.setdefault(p.number, []).append(p)
+                resultado.setdefault(p.number, []).append(p)
         return resultado
 
     # ---------------------------------------------------------------- API ----
@@ -277,10 +373,14 @@ class AzureDocIntelligenceProvider(OCRProvider):
         if progreso:
             progreso(0, 3, None)
         with ThreadPoolExecutor(max_workers=2) as pool:           # Azure y la limpieza a la vez
-            f_ocr = pool.submit(lambda: self._analizar(open(pdf_path, "rb").read()))
+            f_ocr = pool.submit(self._leer_por_trozos, list(range(1, n + 1)),
+                                self._construir_pdf(pdf_path), orient)
             f_prep = pool.submit(self._preparar_todas, pdf_path, n)
-            primera = self._a_paginas(f_ocr.result(), orientaciones=orient)
+            leidas, errores = f_ocr.result()
             preps = f_prep.result()
+        if not leidas and errores:
+            raise RuntimeError("Azure no pudo leer ninguna hoja: " + next(iter(errores.values())))
+        primera = [leidas[i] for i in sorted(leidas)]
         if progreso:
             progreso(1, 3, None)
         paginas = {p.number: p for p in primera}
@@ -300,6 +400,8 @@ class AzureDocIntelligenceProvider(OCRProvider):
             meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco", "error") if k in prep}
             if i in giros and nat is None:        # el texto nativo ya viene en el marco de la vista
                 meta["giro"] = giros[i]
+            if i in errores and nat is None:
+                meta["error_azure"] = errores[i]
             meta.update({"fuente": "ocr", "lecturas": ["original"],
                          "codigos": pg.meta.get("codigos", []), "angulo_azure": pg.meta.get("angulo_azure", 0)})
             if nat is not None:
@@ -345,6 +447,7 @@ class AzureDocIntelligenceProvider(OCRProvider):
                           pages=[paginas[i] for i in range(1, n + 1)])
         cal = calidad.calidad_documento(doc)
         doc.meta = {"modelo": self.modelo, "complementos": self.features, "relecturas": len(releidas),
+                    "hojas_con_error": sorted(errores), "hojas_por_llamada": self.hojas_por_lote,
                     "concurrencia": self.concurrencia,
                     "paginas_mejoradas": sorted(mejoradas, key=lambda m: m["pagina"]),
                     "paginas_bajo_umbral": cal["paginas_revisar"],
@@ -356,6 +459,36 @@ class AzureDocIntelligenceProvider(OCRProvider):
                     "confianza_por_pagina": {p.number: round(fusion.conf_pagina(p), 3) for p in doc.pages},
                     "lectura_por_pagina": cal["por_pagina"]}
         return doc
+
+
+class _Demasiado(Exception):
+    """El envío excede el tamaño que acepta el recurso de Azure."""
+
+
+def _es_demasiado(msg: str) -> bool:
+    return bool(re.search(r"InvalidContentLength|too large|RequestEntityTooLarge|\b413\b", msg, re.I))
+
+
+def _es_conexion(msg: str) -> bool:
+    """Cortes de red / TLS a mitad del envío (Azure cierra la conexión con archivos grandes)."""
+    return bool(re.search(r"EOF occurred|ServiceRequestError|ServiceResponseError|Connection(Reset|Aborted|Error)|"
+                          r"RemoteDisconnected|timed out|timeout", msg, re.I))
+
+
+def _es_autorizacion(msg: str) -> bool:
+    return bool(re.search(r"\b401\b|\b403\b|Unauthorized|PermissionDenied|AuthenticationFailed|Access denied",
+                          msg, re.I))
+
+
+def _achicar_jpg(jpg: bytes, factor: float) -> bytes:
+    try:
+        import cv2, numpy as np
+        img = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_GRAYSCALE)
+        h, w = img.shape[:2]
+        img = cv2.resize(img, (max(1, int(w * factor)), max(1, int(h * factor))), interpolation=cv2.INTER_AREA)
+        return imagen.a_jpg(img, 80)
+    except Exception:
+        return jpg
 
 
 def _seguro(f, *a):

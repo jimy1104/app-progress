@@ -374,6 +374,10 @@ def _run(jid):
         msg = f"{type(e).__name__}: {e}"
         if "401" in msg or "Unauthorized" in msg or "PermissionDenied" in msg:
             msg = "Azure rechazó la llave de Document Intelligence (revisa AZURE_DI_KEY / AZURE_DI_ENDPOINT)."
+        elif "InvalidContentLength" in msg or "too large" in msg:
+            msg = "El archivo excede lo que acepta tu recurso de Azure (el nivel gratuito F0 acepta 4 MB). Baja AZURE_DI_MAX_MB."
+        elif "EOF occurred" in msg or "ServiceRequestError" in msg:
+            msg = "Se cortó la conexión con Azure varias veces seguidas. Vuelve a intentarlo en unos minutos."
         _set(jid, estado="error", etapa="error", etapa_txt="Error", error=msg)
         store.log(m.get("usuario", "?"), m.get("area", ""), "Error al procesar", m.get("archivo", ""), msg[:200])
 

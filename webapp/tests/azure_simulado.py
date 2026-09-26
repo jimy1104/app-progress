@@ -26,16 +26,27 @@ class _Poller:
 
 
 class ClienteSimulado:
-    def __init__(self, sin_girar=False, dpi=200, conf_primera=1.0):
+    def __init__(self, sin_girar=False, dpi=200, conf_primera=1.0, max_bytes=None, max_paginas=None,
+                 cortar_conexion_sobre=None):
+        """max_bytes / max_paginas imitan el nivel gratuito F0 (4 MB, 2 hojas por archivo).
+        cortar_conexion_sobre: bytes a partir de los cuales se «corta» la conexión TLS."""
         self.sin_girar, self.dpi, self.conf_primera = sin_girar, dpi, conf_primera
+        self.max_bytes, self.max_paginas, self.cortar = max_bytes, max_paginas, cortar_conexion_sobre
         self.llamadas = []            # (paginas, features) de cada llamada, para las pruebas
 
     def begin_analyze_document(self, modelo, body, locale=None, content_type=None, features=None, **kw):
         datos = body.read() if hasattr(body, "read") else body
+        if self.cortar and len(datos) > self.cortar:
+            raise ConnectionError("ServiceRequestError: EOF occurred in violation of protocol (_ssl.c:2427)")
+        if self.max_bytes and len(datos) > self.max_bytes:
+            raise ValueError("HttpResponseError: (InvalidRequest) Invalid request. InvalidContentLength: "
+                             "The input image is too large.")
         doc = pymupdf.open(stream=datos, filetype="pdf")
         self.llamadas.append((doc.page_count, list(features or [])))
         content, pages, paragraphs = "", [], []
         for i, page in enumerate(doc):
+            if self.max_paginas and i >= self.max_paginas:
+                break
             gris = imagen.render(page, self.dpi)
             alto, ancho = gris.shape
             W, H = page.rect.width / 72.0, page.rect.height / 72.0          # pulgadas, como Azure

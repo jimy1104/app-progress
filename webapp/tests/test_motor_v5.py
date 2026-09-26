@@ -233,3 +233,27 @@ def test_hoja_escaneada_de_costado_se_lee_derecha(tmp_path):
     texto = os_engine.normaliza(doc.pages[0].text)
     assert "TERMINOS DE REFERENCIA" in texto, texto[:200]
     assert doc.pages[0].meta.get("giro") in (90, 270)
+
+
+@lenta
+def test_azure_nivel_gratuito_y_archivos_grandes(tmp_path):
+    """Producción: «InvalidContentLength» (archivo > 4 MB en el nivel F0), Azure que lee
+    solo 2 hojas por archivo y conexiones TLS cortadas. El expediente debe leerse entero."""
+    from azure_simulado import ClienteSimulado
+    from ocr.azure_provider import AzureDocIntelligenceProvider
+    src = pymupdf.open()
+    for i in range(7):
+        src.insert_pdf(_escaneo(f"INFORME N {100 + i}-2026", "Texto de prueba del servicio prestado. " * 15))
+    ruta = str(tmp_path / "grande.pdf")
+    src.save(ruta)
+    peso_hoja = os.path.getsize(ruta) / 7
+    cli = ClienteSimulado(max_bytes=int(peso_hoja * 3.5), max_paginas=2,
+                          cortar_conexion_sobre=int(peso_hoja * 5))
+    prov = AzureDocIntelligenceProvider(client=cli)
+    prov.relectura = False
+    doc = prov.analyze(ruta)
+    assert [p.number for p in doc.pages] == list(range(1, 8))
+    for p in doc.pages:
+        assert "INFORME" in os_engine.normaliza(p.text), (p.number, p.text[:80])
+    assert doc.meta["hojas_con_error"] == [] and doc.meta["hojas_por_llamada"] == 2
+    assert len(cli.llamadas) >= 4                           # tuvo que reenviar en grupos chicos

@@ -41,7 +41,8 @@ Portal de Azure → tu App Service → **Configuration → General settings → 
 | `OCR_CONF_SEGURA_VOTADA` | `0.70` (opcional) — confianza mínima de una palabra confirmada por dos lecturas independientes |
 | `OCR_RELECTURA` | `1` (opcional) — `0` desactiva la segunda pasada (imagen limpia y sin sellos) |
 | `OCR_MAX_RELECTURAS` | `60` (opcional) — tope de páginas a releer por expediente |
-| `OCR_HOJAS_POR_LOTE` | `15` (opcional) — hojas por llamada en la segunda pasada |
+| `AZURE_DI_MAX_MB` | `4` (opcional) — tamaño máximo de cada envío a Azure. El expediente se manda en trozos de este tamaño; `4` sirve para el nivel gratuito (F0) y para el S0. Con S0 se puede subir (p. ej. `50`) para hacer menos llamadas. |
+| `AZURE_DI_HOJAS_POR_LLAMADA` | `10` (opcional) — hojas por envío. Si Azure devuelve menos (el F0 lee solo 2 por archivo), el sistema lo detecta, reenvía las que faltan y sigue con ese tamaño. |
 | `OCR_DPI` | `300` (opcional) — resolución de la imagen limpia que se envía en la segunda pasada |
 | `PDF_BUSCABLE` | `1` (opcional) — `0` no genera el PDF con capa de texto (los cortes salen del original) |
 | `OCR_PROVIDER` | `azure` (opcional) — `local` obliga a usar el OCR de la máquina. Si no se pone, usa Azure cuando hay endpoint y llave, y si no, el local. |
@@ -149,6 +150,11 @@ prueba se guardan en `tests/muestras/` (está en `.gitignore`: nunca van al repo
 
 ## 10. Si algo falla
 - Portal → App Service → **Log stream**: muestra el error exacto.
+- `No module named 'app'` → se desplegó la carpeta `webapp/` en vez de su CONTENIDO: `app.py`
+  y `requirements.txt` deben quedar en la raíz del sitio.
+- `InvalidContentLength` / `EOF occurred in violation of protocol` → el archivo era muy grande
+  para el recurso de Azure (el nivel F0 acepta 4 MB y 2 hojas por archivo). Desde la v5 el
+  expediente se envía en trozos y se reintenta solo; revisa `AZURE_DI_MAX_MB`.
 - `/api/config` dice qué configuración falta.
 - "Azure rechazó la llave…" → revisa `AZURE_DI_KEY` y `AZURE_DI_ENDPOINT`.
 - El nombre con tilde (*Gestiónderiesgo*) suele funcionar; si da problemas raros, crea la
