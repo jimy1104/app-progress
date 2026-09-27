@@ -27,7 +27,7 @@ import os, glob, shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pymupdf
 from .base import OCRWord, OCRLine, OCRPage, OCRDocument, OCRProvider
-from . import imagen, nativo, fusion, calidad
+from . import imagen, nativo, fusion, calidad, sellos
 
 os.environ.setdefault("OMP_THREAD_LIMIT", "1")
 
@@ -100,6 +100,7 @@ class TesseractProvider(OCRProvider):
         self.objetivo = calidad.OBJETIVO_PAGINA
         self.concurrencia = max(1, int(os.getenv("OCR_CONCURRENCIA", str(min(4, (os.cpu_count() or 2))))))
         self.timeout = int(os.getenv("OCR_TIMEOUT_PAGINA", "180"))
+        self.leer_sellos = os.getenv("OCR_LEER_SELLOS", "1") != "0"
 
     # ------------------------------------------------------------------------
     def _config(self, psm):
@@ -195,6 +196,16 @@ class TesseractProvider(OCRProvider):
             lecturas.append(self._tesseract(original, numero, W, H, 4, None, "original"))
         pg = fusion.fusionar(lecturas) if len(lecturas) > 1 else lecturas[0]
         meta["lecturas"] = [l.meta.get("lectura") for l in lecturas]
+        if self.leer_sellos and meta.get("color", 0) >= 0.002 and meta.get("foto", 0) < 0.13:
+            # los sellos y firmas de color, leídos SOLOS (sin el texto impreso encima)
+            try:
+                with pymupdf.open(pdf_path) as doc:
+                    img = sellos.imagen_solo_color(doc[numero - 1], self.dpi, giro)
+                sp = self._tesseract(img, numero, W, H, 11, None, "sellos")
+                meta["lectura_sellos"] = [{"text": l.text, "conf": round(l.conf, 3), "bbox": list(l.bbox)}
+                                          for l in sp.lines if l.conf >= 0.4 and len(l.text.strip()) >= 2]
+            except Exception:
+                pass
         pg.meta = meta
         despues = calidad.calidad_pagina(pg)["pct"] or 0.0
         return pg, {"antes": antes, "despues": despues, "lecturas": len(lecturas)}

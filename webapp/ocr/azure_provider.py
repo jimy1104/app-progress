@@ -28,7 +28,7 @@ import io, os, re, bisect, time, threading
 from concurrent.futures import ThreadPoolExecutor
 import pymupdf
 from .base import OCRWord, OCRLine, OCRPage, OCRDocument, OCRProvider
-from . import imagen, nativo, fusion, calidad
+from . import imagen, nativo, fusion, calidad, sellos
 import config
 
 
@@ -84,6 +84,8 @@ class AzureDocIntelligenceProvider(OCRProvider):
         self.hojas_por_lote = max(1, int(os.getenv("AZURE_DI_HOJAS_POR_LLAMADA",
                                                    os.getenv("OCR_HOJAS_POR_LOTE", "10"))))
         self._lock = threading.Lock()
+        # sellos y firmas de color leídos SOLOS (1 hoja más por cada hoja con tinta de color)
+        self.leer_sellos = os.getenv("OCR_LEER_SELLOS", "1") != "0"
         # Las llamadas son independientes: se hacen en paralelo.
         # 4 a la vez va cómodo dentro de los límites del nivel S0 de Azure.
         self.concurrencia = max(1, int(os.getenv("OCR_CONCURRENCIA", "4")))
@@ -345,6 +347,21 @@ class AzureDocIntelligenceProvider(OCRProvider):
         out.close()
         return datos, mapa
 
+    def _leer_sellos(self, pdf_path, hojas, paginas, dims, giros):
+        """Lee la imagen de SOLO tinta de color de cada hoja (sellos, firmas, folios a
+        mano) y guarda sus renglones en meta['lectura_sellos'] (no se mezclan con el
+        texto de la hoja: son otra capa)."""
+        def una(i):
+            with pymupdf.open(pdf_path) as d:
+                return i, {"solo_sellos": imagen.a_jpg(sellos.imagen_solo_color(d[i - 1], 200), 85)}
+        with ThreadPoolExecutor(max_workers=max(1, min(4, os.cpu_count() or 2))) as pool:
+            variantes = dict(pool.map(una, hojas))
+        leidas, _ = self._leer_por_trozos(hojas, self._construir_variante("solo_sellos", variantes, dims), dims=dims)
+        for h, p in leidas.items():
+            p.girar(giros.get(h, 0))
+            paginas[h].meta["lectura_sellos"] = [{"text": l.text, "conf": round(l.conf, 3), "bbox": list(l.bbox)}
+                                                 for l in p.lines if len(l.text.strip()) >= 2]
+
     def _releer(self, hojas, variantes, dims):
         """2ª pasada, en trozos que el recurso acepte: {hoja: [lecturas]}."""
         resultado = {}
@@ -441,6 +458,15 @@ class AzureDocIntelligenceProvider(OCRProvider):
                     despues = calidad.calidad_pagina(nueva)["pct"] or 0
                     if despues > antes + 0.005:
                         mejoradas.append({"pagina": h, "antes": round(antes, 3), "despues": round(despues, 3)})
+        if self.leer_sellos:
+            con_color = [p.number for p in paginas.values()
+                         if p.meta.get("fuente") == "ocr" and not p.meta.get("en_blanco")
+                         and p.meta.get("color", 0) >= 0.002 and p.meta.get("foto", 0) < 0.13]
+            if con_color:
+                try:
+                    self._leer_sellos(pdf_path, con_color, paginas, dims, giros)
+                except Exception:
+                    pass                             # un plus: nunca tumba el expediente
         if progreso:
             progreso(3, 3, None)
         doc = OCRDocument(provider=self.name, source_path=pdf_path,

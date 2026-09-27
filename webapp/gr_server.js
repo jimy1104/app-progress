@@ -158,6 +158,35 @@ function detalleOCR(){
     + (bajo?` · <b>${bajo} página(s) con palabras dudosas (menos del ${Math.round((o.umbral||0.95)*100)}% seguras)</b>: ${(o.paginas_bajo_umbral||[]).slice(0,15).join(', ')}${bajo>15?'…':''} — conviene mirarlas.`:' · todas las páginas por encima del objetivo.');
   host.after(det);
 }
+function fichaHTML(f){
+  if(!f) return '';
+  const quien=k=>f[k]?`${esc(f[k].nombre)}${f[k].cargo?` <span class="rsub">(${esc(f[k].cargo)})</span>`:''}`:'';
+  const filas=[];
+  if(f.fecha) filas.push(`<b>Fecha:</b> ${esc(f.fecha)}`);
+  if(f.de) filas.push(`<b>De:</b> ${quien('de')}`);
+  if(f.para) filas.push(`<b>Para:</b> ${quien('para')}`);
+  if(f.asunto) filas.push(`<b>Asunto:</b> ${esc(f.asunto)}`);
+  if(f.referencia) filas.push(`<b>Referencia:</b> ${esc(f.referencia)}`);
+  if((f.firmantes||[]).length) filas.push(`<b>Firma${f.firmantes.length>1?'s':''}:</b> `+f.firmantes.map(x=>`${x.nombre?esc(x.nombre):'<i>nombre no legible</i>'}${x.cargo?` <span class="rsub">– ${esc(x.cargo)}</span>`:''}${x.rol?` <span class="rsub">[${esc(x.rol)}]</span>`:''}${x.firma_manuscrita?' ✍':''}${x.por==='remitente'?' <span class="rsub" title="Firma el remitente (DE); el nombre del sello de firma no se pudo leer">(remitente)</span>':''} <span class="rsub">(hoja ${x.pagina})</span>`).join('; '));
+  const ss=(f.sellos||[]).filter(x=>x.tipo!=='post-firma'&&x.tipo!=='firma manuscrita');
+  if(ss.length) filas.push(`<b>Sellos:</b> `+ss.slice(0,8).map(x=>`${esc(x.descripcion||x.tipo)} <span class="rsub">(hoja ${x.pagina})</span>`).join('; ')+(ss.length>8?` <span class="rsub">y ${ss.length-8} más</span>`:''));
+  return filas.length?`<div class="rsub" style="margin-top:4px;line-height:1.5">${filas.join('<br>')}</div>`:'';
+}
+window.verFicha=function(ev,el){
+  const d=(RES.documentos||[])[+el.dataset.doc], p=el.dataset.pag;
+  let box=$('fichaFlot'); if(!box){ box=document.createElement('div'); box.id='fichaFlot';
+    box.style.cssText='position:fixed;z-index:9999;max-width:460px;background:var(--card,#fff);color:var(--text,#222);border:1px solid var(--line,#ccd);border-radius:10px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:13px;pointer-events:none';
+    document.body.appendChild(box); }
+  const mp=(RES.mapa_paginas||[])[p-1]||{};
+  box.innerHTML=d?`<div class="rsub">Hoja ${p} · ${esc(mp.rol||'')} · pág. ${d.pagina_ini}${d.pagina_fin!==d.pagina_ini?'–'+d.pagina_fin:''}</div>
+      <div style="font-weight:700;margin:2px 0">${esc((d.ficha&&d.ficha.titulo)||d.etiqueta)}</div>${fichaHTML(d.ficha)}`
+    :`<div class="rsub">Hoja ${p}</div><b>${esc(mp.rol||'sin documento')}</b>`;
+  const r=el.getBoundingClientRect(), w=Math.min(460,window.innerWidth-24);
+  box.style.left=Math.max(12,Math.min(r.left,window.innerWidth-w-12))+'px';
+  box.style.top=(r.bottom+8+box.offsetHeight>window.innerHeight? r.top-box.offsetHeight-8 : r.bottom+8)+'px';
+  box.style.display='block';
+};
+window.ocultarFicha=function(){ const b=$('fichaFlot'); if(b) b.style.display='none'; };
 function extras(ver){
   let box=$('srvExtra'); if(!box){ box=document.createElement('div'); box.id='srvExtra';
     document.querySelector('#ws4 .result-head').after(box); }
@@ -166,14 +195,20 @@ function extras(ver){
   const docs=(RES.documentos||[]).map((s,i)=>{
     const rs=(s.riesgos||[]), nr=rs.filter(r=>r.nivel==='rojo').length;
     const chips=rs.map(r=>`<span class="tag ${r.nivel==='rojo'?'revw':'cut'}" title="${esc(r.hecho)}">${esc(r.id)}</span>`).join(' ');
-    return `<div class="blitem" style="border-left:4px solid ${COL[i%COL.length]}"><b>pág. ${s.pagina_ini}${s.pagina_fin!==s.pagina_ini?'–'+s.pagina_fin:''}</b> — ${esc(s.etiqueta)}`
+    const f=s.ficha||{};
+    return `<div class="blitem" style="border-left:4px solid ${COL[i%COL.length]}"><b>pág. ${s.pagina_ini}${s.pagina_fin!==s.pagina_ini?'–'+s.pagina_fin:''}</b> — <b>${esc(f.titulo||s.etiqueta)}</b>`
+      +(f.titulo&&f.titulo!==s.etiqueta?` <span class="rsub">(${esc(s.etiqueta)})</span>`:'')
+      +(f.numero_fuente?` <span class="rsub" title="El número no se pudo leer en el documento; se tomó de la cita que hace otro documento">· N° ${esc(f.numero_fuente)}</span>`:'')
+      +fichaHTML(f)
       +((s.blancas||[]).length?` <span class="rsub">(reverso en blanco: ${s.blancas.join(', ')})</span>`:'')
       +(s.revisar?` <span class="tag cut" title="La frontera de este documento tiene poca evidencia">revisar corte</span>`:'')
       +(rs.length?`<br><span class="rsub">${rs.length} riesgo(s)${nr?`, <b style="color:var(--red)">${nr} confirmado(s)</b>`:''}:</span> ${chips}`:'<br><span class="rsub">sin riesgos ubicados en este documento</span>')
       +`</div>`;}).join('');
+  const docsById=RES.documentos||[];
   const mapa=(RES.mapa_paginas||[]).map(p=>{
     const c=p.documento==null?'#cbd5e1':COL[p.documento%COL.length], blanca=/blanco/.test(p.rol);
-    return `<a href="${withT('/api/jobs/'+JOB+'/expediente.pdf')}#page=${p.pagina}" target="_blank" rel="noopener" title="Hoja ${p.pagina}: ${esc(p.etiqueta||'sin documento')} · ${esc(p.rol)}"
+    return `<a href="${withT('/api/jobs/'+JOB+'/expediente.pdf')}#page=${p.pagina}" target="_blank" rel="noopener" data-pag="${p.pagina}" data-doc="${p.documento==null?'':p.documento}"
+      onmouseenter="verFicha(event,this)" onmouseleave="ocultarFicha()" aria-label="Hoja ${p.pagina}: ${esc(p.resumen||p.titulo||p.etiqueta||'sin documento')} · ${esc(p.rol)}"
       style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:34px;margin:2px;border-radius:4px;font-size:11px;text-decoration:none;
       ${blanca?`background:repeating-linear-gradient(45deg,#fff,#fff 3px,${c}33 3px,${c}33 6px);color:${c};border:1px dashed ${c}`:`background:${c};color:#fff`};${p.rol==='inicio'?'box-shadow:inset 0 3px 0 rgba(0,0,0,.35)':''}">${p.pagina}</a>`;}).join('');
   const descargas=`${RES.buscable?`<a class="btn ghost sm" href="${withT('/api/jobs/'+JOB+'/buscable.pdf')}">⬇ Expediente buscable (PDF con texto)</a>`:''}
@@ -192,9 +227,10 @@ function extras(ver){
        <div class="blitem"><b>Acumulado previo del mismo objeto (${esc(c.anio)})</b> — ${ac.ordenes||0} orden(es), ${money(ac.monto)}</div>
      </div>${vals?`<div class="clabel" style="margin-top:12px">Validación cruzada de los datos</div>${vals}`:''}</div>
    <div class="card"><div class="clabel">Mapa del expediente — qué es cada hoja</div>
-     <div class="cdesc" style="margin:4px 0 6px">Cada color es un documento; la raya de arriba marca su primera hoja; las rayadas son reversos en blanco. Clic para abrir esa hoja.</div>
+     <div class="cdesc" style="margin:4px 0 6px">Cada color es un documento; la raya de arriba marca su primera hoja; las rayadas son reversos en blanco. Pasa el mouse para ver qué documento es (número, fecha, de, para, asunto, firmas y sellos); clic para abrir esa hoja.</div>
      <div style="display:flex;flex-wrap:wrap">${mapa}</div>
      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${descargas}</div></div>
+   ${(RES.personas||[]).length?`<details class="card"><summary class="clabel" style="cursor:pointer">Personas que intervienen (${RES.personas.length})</summary><div class="bllist" style="margin-top:8px">${RES.personas.map(p=>`<div class="blitem"><b>${esc(p.nombre)}</b>${p.cargo?' — '+esc(p.cargo):''}</div>`).join('')}</div></details>`:''}
    <div class="card"><div class="clabel">Documentos identificados en el expediente</div><div class="bllist" style="margin-top:8px">${docs||'<span class="rsub">No se identificaron cabeceras de documentos.</span>'}</div>
      ${cortes?`<div class="clabel" style="margin-top:16px">Documentos cortados</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${cortes}</div>`:''}</div>
    ${ver.length?`<details class="card"><summary class="clabel" style="cursor:pointer">✓ Controles verificados sin observación (${ver.length})</summary><div class="bllist" style="margin-top:10px">${verif}</div></details>`:''}`;

@@ -70,12 +70,29 @@ def construir(res, kb, ruta):
         e.font = Font(bold=True, size=9, color=ROJO_TX if rojo else AMB_TX)
     ws.auto_filter.ref = f"A5:{get_column_letter(len(H))}{5 + len(rs)}"
 
+    def _firmante(x):
+        d = x.get("nombre") or "(nombre no legible)"
+        d += f" – {x['cargo']}" if x.get("cargo") else ""
+        d += f" [{x['rol']}]" if x.get("rol") else ""
+        d += " (remitente; sello no leído)" if x.get("por") == "remitente" else ""
+        return d + f" (hoja {x['pagina']})"
+
     # ---- Documentos detectados ----
     ws2 = wb.create_sheet("Documentos")
-    H2 = ["Documento", "Página inicial", "Página final", "Confianza OCR"]
-    _encabezado(ws2, len(H2), "Documentos identificados en el expediente", res); _tabla(ws2, 5, H2, [44, 14, 14, 14])
+    H2 = ["Documento", "Título completo", "Página inicial", "Página final", "Fecha", "De", "Para", "Asunto",
+          "Firmantes", "Sellos", "Confianza OCR"]
+    _encabezado(ws2, len(H2), "Documentos identificados en el expediente", res)
+    _tabla(ws2, 5, H2, [26, 44, 10, 10, 12, 30, 30, 44, 40, 44, 12])
     for i, s in enumerate(res.get("documentos", []), 1):
-        for j, v in enumerate([s["etiqueta"], s["pagina_ini"], s["pagina_fin"], f"{s['confianza']:.0%}"], 1):
+        f = s.get("ficha") or {}
+        persona = lambda k: (f[k]["nombre"] + (f" ({f[k]['cargo']})" if f[k].get("cargo") else "")) if f.get(k) else ""
+        fila = [s["etiqueta"], f.get("titulo", ""), s["pagina_ini"], s["pagina_fin"], f.get("fecha", ""),
+                persona("de"), persona("para"), f.get("asunto", ""),
+                "; ".join(_firmante(x) for x in f.get("firmantes", [])),
+                "; ".join(f"{x.get('descripcion') or x['tipo']} (hoja {x['pagina']})"
+                          for x in f.get("sellos", []) if x["tipo"] not in ("post-firma",)),
+                f"{s['confianza']:.0%}"]
+        for j, v in enumerate(fila, 1):
             c = ws2.cell(5 + i, j, v); c.border = BORDE
     ctx = res.get("contexto", {}); f0 = 7 + len(res.get("documentos", []))
     for k, (lab, val) in enumerate([("N° de orden", ctx.get("os")), ("RUC proveedor", ctx.get("ruc")),

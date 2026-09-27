@@ -290,7 +290,30 @@ def _run(jid):
 
         _set(jid, etapa="segmentando", etapa_txt="Identificando los documentos del expediente")
         segs = os_engine.segmentar(doc)
+        # los números de cada documento que no salieron seguros se releen ampliados
+        try:
+            from ocr import relectura
+            if relectura.releer_numeros(doc, segs, pdf_path(jid)):
+                doc.to_json(ocr_path(jid))
+        except Exception:
+            traceback.print_exc()
         mapa = os_engine.mapa_paginas(doc, segs)
+        # ficha de cada documento: título completo, de/para/asunto/fecha, firmantes, sellos
+        fichas_docs, personas = [], []
+        try:
+            import fichas
+            from ocr import sellos
+            with pymupdf.open(pdf_path(jid)) as pdoc:
+                regs = {p.number: sellos.regiones(pdoc[p.number - 1]) for p in doc.pages
+                        if not (p.meta or {}).get("en_blanco") and (p.meta or {}).get("color", 1) >= 0.002}
+            fichas_docs, registro = fichas.fichas(doc, segs, regs)
+            personas = [{"nombre": p["nombre"], "cargo": p["cargo"]} for p in registro.personas.values()]
+            for x in mapa:
+                if x["documento"] is not None and x["documento"] < len(fichas_docs):
+                    f_ = fichas_docs[x["documento"]]
+                    x["titulo"], x["resumen"] = f_["titulo"], f_["resumen"]
+        except Exception:
+            traceback.print_exc()
         buscable = None
         if os.getenv("PDF_BUSCABLE", "1") != "0":
             try:
@@ -333,6 +356,8 @@ def _run(jid):
             d_ = dataclasses.asdict(s_)
             d_["i"] = i
             d_["riesgos"] = [{"id": h.id, "nivel": h.nivel, "hecho": h.hecho} for h in hall if h.documento_idx == i]
+            if i < len(fichas_docs):
+                d_["ficha"] = fichas_docs[i]
             documentos.append(d_)
         res = {
             "id": jid, "provider": doc.provider, "paginas": doc.n_pages,
@@ -353,6 +378,7 @@ def _run(jid):
                              if (p.meta or {}).get("giro")},
             "documentos": documentos,
             "mapa_paginas": mapa,
+            "personas": personas,
             "buscable": bool(buscable),
             "cortes": [{"i": i, **{k: c[k] for k in ("tipo", "etiqueta", "pagina_ini", "pagina_fin", "archivo")}}
                        for i, c in enumerate(cortes)],

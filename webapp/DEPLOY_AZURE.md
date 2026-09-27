@@ -43,6 +43,7 @@ Portal de Azure → tu App Service → **Configuration → General settings → 
 | `OCR_MAX_RELECTURAS` | `60` (opcional) — tope de páginas a releer por expediente |
 | `AZURE_DI_MAX_MB` | `4` (opcional) — tamaño máximo de cada envío a Azure. El expediente se manda en trozos de este tamaño; `4` sirve para el nivel gratuito (F0) y para el S0. Con S0 se puede subir (p. ej. `50`) para hacer menos llamadas. |
 | `AZURE_DI_HOJAS_POR_LLAMADA` | `10` (opcional) — hojas por envío. Si Azure devuelve menos (el F0 lee solo 2 por archivo), el sistema lo detecta, reenvía las que faltan y sigue con ese tamaño. |
+| `OCR_LEER_SELLOS` | `1` (opcional) — lee aparte la tinta de color de cada hoja con sellos (folio, recibido, proveído, sello de firma con nombre y cargo). Suma 1 página de Azure por cada hoja con sellos; `0` lo desactiva (los sellos se leen solo de la lectura normal, con más errores). |
 | `OCR_DPI` | `300` (opcional) — resolución de la imagen limpia que se envía en la segunda pasada |
 | `PDF_BUSCABLE` | `1` (opcional) — `0` no genera el PDF con capa de texto (los cortes salen del original) |
 | `OCR_PROVIDER` | `azure` (opcional) — `local` obliga a usar el OCR de la máquina. Si no se pone, usa Azure cuando hay endpoint y llave, y si no, el local. |
@@ -118,6 +119,25 @@ cada una: títulos con sus señales propias, «Página k de N», «VIENEN/VAN» 
 documento, el membrete que se repite o que desaparece. Los documentos fuera del catálogo salen
 como «Otro documento: <título>» en vez de engordar el corte vecino. Cada documento indica sus
 reversos en blanco y se marca «revisar corte» si la frontera tuvo poca evidencia.
+
+**Ficha de cada documento (al pasar el mouse por el mapa de hojas):**
+- **Nombre completo**: «INFORME N° 132-2026-MPC/GPS/SGPVL», «MEMORANDO N° 2809-2026-MPC/OGAF/OLG»,
+  «PEDIDO DE SERVICIO N° 000966», «FACTURA ELECTRÓNICA E001-18», «TÉRMINOS DE REFERENCIA: <servicio>».
+  Las siglas mal leídas se reparan con las que se repiten en el expediente (y las de la MPC);
+  el número que no salió seguro se **relee ampliado** (solo cifras, dos lecturas que deben
+  coincidir). Un número escrito a mano que no se puede leer se toma de la cita que otro
+  documento hace de él («citado en la hoja 33»); si no hay cita, se dice «no legible».
+- **Fecha, De, Para (con cargo), Asunto, Referencia** de memorandos, informes y oficios.
+- **Firmas**: nombre y cargo de quien firma, reconocidos contra las personas del expediente
+  aunque la firma tape el sello («ROSA EL NA T RRES V LCA» → ROSA ELENA TORRES VILCA).
+  En formularios dice además su **papel** (elaboró, da conformidad, solicitante, autoriza).
+  Si el sello de firma no se puede leer: en un memorando/informe se indica el remitente
+  («remitente»); en un formulario se muestra la casilla firmada con «nombre no legible».
+- **Sellos**: folio (con su número), recibido (oficina, fecha y hora), proveído (número,
+  fecha, a quién se deriva), visto bueno, sello institucional; se separan por su tinta de
+  color y el texto se corrige con el vocabulario del propio expediente.
+- **Personas que intervienen**: lista con nombre y cargo de todo el expediente.
+- La hoja **Documentos** del Excel trae lo mismo en columnas.
 
 **Descargas nuevas:** expediente **buscable** (PDF con capa de texto; los cortes también salen
 buscables) y **todo el texto** leído hoja por hoja (.txt).
