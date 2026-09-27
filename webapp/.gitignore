@@ -1,0 +1,8 @@
+.env
+data/
+__pycache__/
+*.pyc
+# expedientes reales de prueba: NUNCA al repositorio (es público)
+tests/muestras/
+*.ocr.json
+salida_demo/
