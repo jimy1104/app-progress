@@ -161,7 +161,7 @@ class TesseractProvider(OCRProvider):
             original = None
             if self.relectura:
                 original = imagen.render(page, self.dpi)          # escaneo tal cual, en gris
-        meta = {k: prep[k] for k in ("angulo", "en_blanco", "tinta", "color", "dpi_origen", "qr")}
+        meta = {k: prep[k] for k in ("angulo", "en_blanco", "tinta", "color", "dpi_origen", "qr", "foto")}
         meta["fuente"] = "ocr"
         if prep["en_blanco"]:
             meta["lecturas"] = []

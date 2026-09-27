@@ -397,7 +397,7 @@ class AzureDocIntelligenceProvider(OCRProvider):
             diag, nat, prep = preps[i]
             pg = paginas.get(i) or OCRPage(number=i, width_pt=dims[i][0], height_pt=dims[i][1],
                                            rotation=0, lines=[])
-            meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco", "error") if k in prep}
+            meta = {k: prep[k] for k in ("tinta", "color", "dpi_origen", "en_blanco", "foto", "error") if k in prep}
             if i in giros and nat is None:        # el texto nativo ya viene en el marco de la vista
                 meta["giro"] = giros[i]
             if i in errores and nat is None:

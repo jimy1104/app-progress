@@ -171,20 +171,26 @@ DOCS = {
     "comprobante_pago": dict(
         etiqueta="Comprobante de Pago (Factura)",
         anclas=["FACTURAELECTRONICA", "RECIBOPORHONORARIOS", "BOLETADEVENTAELECTRONICA"],
-        requiere=[], excluye=["CONLAFACTURA", "SUFACTURACOPIA"],
+        # pie de toda representación impresa de SUNAT: identifica la hoja aunque el
+        # recuadro del título (letra chica) no se haya leído
+        anclas_pagina=["REPRESENTACIONIMPRESADELAFACTURA", "REPRESENTACIONIMPRESADELRECIBO",
+                       "REPRESENTACIONIMPRESADELABOLETA"],
+        requiere=[], excluye=["CONLAFACTURA", "SUFACTURACOPIA", "LAFACTURAELECTRONICA"],
         vocab=["FACTURAELECTRONICA", "OPGRAVADA", "IGV", "IMPORTETOTAL", "VALORDEVENTA",
                "FECHADEEMISI", "REPRESENTACIONIMPRESA", "RECIBOPORHONORARIOS", "RETENCI"],
         hojas=1),
     "validez_cpe": dict(
         etiqueta="Consulta de validez del comprobante",
-        anclas=["CONSULTAVALIDEZDELCOMPROBANTE"], requiere=[], excluye=[],
+        anclas=["CONSULTAVALIDEZDELCOMPROBANTE"],
+        anclas_pagina=["ESUNCOMPROBANTEDEPAGOVALIDO", "CONSULTAVALIDEZDELCOMPROBANTE"],
+        requiere=[], excluye=[],
         vocab=["CONSULTAVALIDEZ", "COMPROBANTEDEPAGOELECTRONICO", "ESUNCOMPROBANTEVALIDO", "SUNAT"],
         hojas=1),
     "informe": dict(
         etiqueta="Informe",
         anclas=["INFORMEN", "INFORMEDELSERVICIO"], requiere=[],
         excluye=["REFERENCIAINFORMEN", "ELINFORMEN", "SEGUNINFORMEN", "MEDIANTEINFORMEN",
-                 "CONELINFORMEN"],
+                 "CONELINFORMEN"], inicio_linea=True,
         vocab=["ASUNTO", "REFERENCIA", "ANTECEDENTES", "ANALISIS", "CONCLUSION", "RECOMENDACION",
                "ATENTAMENTE"],
         hojas=None),
@@ -192,12 +198,16 @@ DOCS = {
         etiqueta="Memorando",
         anclas=["MEMORANDON", "MEMORANDUMN", "OFICION"], requiere=[],
         excluye=["REFERENCIAMEMORANDON", "ELMEMORANDON", "SEGUNMEMORANDON", "MEDIANTEMEMORANDON",
-                 "MEDIANTEOFICION"],
+                 "MEDIANTEOFICION"], inicio_linea=True,
         vocab=["MEMORANDO", "ASUNTO", "REFERENCIA", "ATENTAMENTE"],
         hojas=None),
     "anexo": dict(
+        # «ANEXO 01» solo es documento propio si es una declaración o formato; un anexo
+        # fotográfico («ANEXO01» + fotos) es parte del documento que lo adjunta
         etiqueta="Anexo / Declaración jurada",
-        anclas=["ANEXO0", "ANEXON", "DECLARACIONJURADA"], requiere=[], excluye=[],
+        anclas=["ANEXO0", "ANEXON", "DECLARACIONJURADA"],
+        requiere=["DECLARO", "JURAMENTO", "DECLARACIONJURADA", "SUSCRIBE", "IDENTIFICADOCON",
+                  "RAZONSOCIAL", "FORMATO"], excluye=[],
         vocab=["DECLARACIONJURADA", "DECLAROBAJOJURAMENTO", "ELQUESUSCRIBE", "IDENTIFICADO"],
         hojas=1),
     "cotizacion": dict(
@@ -232,6 +242,11 @@ DOCS = {
         excluye=["ELCONTRATON", "DELCONTRATON", "ALCONTRATON"],
         vocab=["CONTRATISTA", "OBJETODELCONTRATO", "LASPARTES", "SUSCRIBEN", "DOMICILIO"],
         inicio_linea=True, hojas=None),
+    "correo": dict(
+        etiqueta="Correo electrónico",
+        anclas=["GMAIL", "OUTLOOK", "MENSAJEREENVIADO", "FORWARDEDMESSAGE"],
+        requiere=["HOTMAILCOM", "GMAILCOM", "OUTLOOKCOM", "YAHOO", "GOBPE", "COMPE"], excluye=[],
+        vocab=["GMAILCOM", "HOTMAILCOM", "PARA", "ASUNTO", "ADJUNTO"], hojas=None),
     "otro": dict(
         etiqueta="Otro documento", anclas=[], requiere=[], excluye=[], vocab=[], hojas=None),
 }
@@ -242,6 +257,11 @@ CAMPOS_MEMO = ["ASUNTO", "REFERENCIA", "FECHA", "DE", "A"]
 # opciones a)-d) de la interfaz -> tipos de documento
 CORTES_UI = {"tdr": "tdr", "requerimiento": "pedido_servicio",
              "pago": "comprobante_pago", "os": "orden_servicio"}
+
+# Documentos que repiten su título en cada hoja (cabecera del SIGA, membrete del TDR):
+# ahí un título igual en la hoja siguiente es CONTINUACIÓN. En la correspondencia
+# (informe, memorando, carta, conformidad…) un título nuevo es un documento nuevo.
+REPITE_TITULO = {"orden_servicio", "pedido_servicio", "tdr", "certificacion", "cotizacion", "ficha_ruc"}
 
 # tipos "débiles": sus títulos también aparecen como cláusulas dentro de un TDR
 DEBILES = {"anexo", "informe", "memorando", "cotizacion", "cci", "rnp", "contrato"}
@@ -285,8 +305,11 @@ def texto_util(pg) -> str:
 
 
 def _pagina_vacia(pg) -> bool:
-    if (getattr(pg, "meta", None) or {}).get("en_blanco"):
-        return True
+    meta = getattr(pg, "meta", None) or {}
+    if "en_blanco" in meta:
+        # el lector midió la TINTA real de la hoja: una hoja de fotos con solo «ANEXO01»
+        # tiene poco texto pero no está en blanco
+        return bool(meta["en_blanco"])
     if len(normaliza(pg.text)) < MIN_CARACTERES:
         return True
     return len(normaliza(texto_util(pg))) < MIN_CARACTERES
@@ -339,6 +362,8 @@ def _titulos_de_pagina(pg) -> dict:
                     continue
                 # renglón donde está el título (en la cabecera unida, por los '|')
                 ln = cab[k - 1] if k > 0 else cab[min(len(cab) - 1, texto.count("|", 0, pos))]
+                # el título va arriba: entre dos títulos posibles gana el más alto
+                score *= 1.0 - 0.25 * max(0.0, (ln.bbox[1] + ln.bbox[3]) / 2)
                 # «14. DECLARACIÓN JURADA», «9. CARTA DE AUTORIZACIÓN»: una cláusula
                 # NUMERADA de otro documento (el TDR), no el título de un documento propio
                 if tipo in DEBILES and ln is not None and _CLAUSULA.match(ln.text or ""):
@@ -347,6 +372,18 @@ def _titulos_de_pagina(pg) -> dict:
                     score = min(1.0, score + 0.1)       # Azure también lo ve como título
                 if tipo not in out or score > out[tipo][0]:
                     out[tipo] = (score, (ln.text if ln is not None else "").strip()[:120])
+    # frases que identifican el documento en cualquier parte de la hoja (pie de SUNAT…)
+    for tipo, d in DOCS.items():
+        for ancla in d.get("anclas_pagina", ()):
+            if tipo in out:
+                break
+            for ln in pg.lines:
+                if _parecido(_compacta(ln.text), ancla, 0.90):
+                    out[tipo] = (0.85, ln.text.strip()[:120])
+                    break
+    # la consulta de validez CITA la factura: no es la factura
+    if "validez_cpe" in out:
+        out.pop("comprobante_pago", None)
     # Una hoja con el membrete del TDR que menciona «declaración jurada», «informe» o
     # «anexo» en una cláusula sigue siendo TDR: esos títulos débiles no cuentan.
     if "tdr" in out:
@@ -388,7 +425,7 @@ _MEMBRETE_COMUN = {"MUNICIPALIDAD", "PROVINCIAL", "CALLAO", "FOLIO", "GERENCIA",
 _GENERICO = re.compile(r"^(?:CARTA|SOLICITUD|CONSTANCIA|CERTIFICADO|ACTA|RESOLUCION|INFORME|"
                        r"DECLARACION|REQUERIMIENTO|NOTA|OFICIO|CONTRATO|ADENDA|LIQUIDACION|"
                        r"REPORTE|RECIBO|COMPROBANTE|PLANILLA|VALORIZACION|ENTREGABLE|PLAN|"
-                       r"CUADRO|FICHA|FORMATO|ANEXO|PROPUESTA|EXPEDIENTE|DECRETO|PROVEIDO|HOJA DE)\b")
+                       r"CUADRO|FICHA|FORMATO|PROPUESTA|EXPEDIENTE|DECRETO|HOJA DE)\b")
 
 
 @dataclass
@@ -466,6 +503,7 @@ def _prominente(ln, tam_medio):
 def _generico(pg):
     """Título de un documento que no está en el catálogo (carta, constancia…)."""
     mejor = (0.0, "")
+    foto = (pg.meta or {}).get("foto", 0) >= 0.13
     tams = sorted(_tam_letra(l) for l in pg.lines if len((l.text or "").strip()) >= 8)
     tam_medio = tams[len(tams) // 2] if tams else 0.0
     for ln in _lineas_cabecera(pg):
@@ -476,10 +514,11 @@ def _generico(pg):
         if palabras and palabras <= _MEMBRETE_COMUN | {"DEL", "DE", "LA", "EL"}:
             continue
         s = 0.0
-        if ln.role == "title":
-            s = 0.8
-        elif ln.role == "sectionHeading":
-            s = 0.5
+        if not foto:          # en una hoja de fotos, lo «titular» suele ser un letrero de la foto
+            if ln.role == "title":
+                s = 0.6
+            elif ln.role == "sectionHeading":
+                s = 0.4
         if _GENERICO.match(t):
             con_numero = bool(re.search(r"\bN(?:RO|O)?\s*\d", t))
             if ln.role in ("title", "sectionHeading") or _prominente(ln, tam_medio):
@@ -525,6 +564,7 @@ def _similar(a: set, b: set) -> float:
 PESOS = dict(
     nuevo=3.0,          # costo de abrir un documento (sin evidencia no se corta)
     otro=1.0,           # costo extra de abrir un documento no catalogado
+    sin_titulo=4.0,     # abrir un documento de catálogo sin su título
     mismo_tipo=5.0,     # costo extra de abrir un doc. del MISMO tipo que el actual
     titulo_mismo=3.0,   # la hoja repite el título del documento en curso (membrete del TDR,
                         # cabecera del SIGA en cada hoja de la orden): es continuación
@@ -558,8 +598,12 @@ def _puntaje_inicio(r: Rasgos, prev: Optional[Rasgos], tipo: str, actual: Option
     s = -P["nuevo"]
     if tipo == "otro":
         s += -P["otro"] + P["generico"] * r.generico[0]
-    else:
+    elif _t(r, tipo):
         s += P["titulo"] * _t(r, tipo)
+    else:
+        # sin su título, una hoja no puede ABRIR un documento de catálogo: si no sigue al
+        # anterior, es «otro documento» (evita llamar «Orden de Servicio» a una hoja de fotos)
+        s -= P["sin_titulo"]
     s += P["vocab"] * r.vocab.get(tipo, 0.0)
     if r.pag and r.pag[0] == 1:
         s += P["pag1"]
@@ -567,7 +611,7 @@ def _puntaje_inicio(r: Rasgos, prev: Optional[Rasgos], tipo: str, actual: Option
         s += P["cambio"] * (1.0 - _similar(r.membrete, prev.membrete))
         if r.numeros and prev.numeros and not (r.numeros & prev.numeros) and _t(prev, tipo) > 0:
             s += P["num_distinto"]
-    if actual == tipo:
+    if actual == tipo and tipo in REPITE_TITULO:
         s -= P["mismo_tipo"]
     return s
 
@@ -591,7 +635,12 @@ def _puntaje_sigue(r: Rasgos, prev: Optional[Rasgos], tipo: str, k: int,
             elif _t(r, tipo) > 0 and _t(prev, tipo) > 0:
                 s -= P["num_distinto"]
         s += P["membrete"] * _similar(r.membrete, prev.membrete)
-    s += P["titulo_mismo"] * _t(r, tipo)
+    if tipo in REPITE_TITULO:
+        s += P["titulo_mismo"] * _t(r, tipo)
+    else:
+        # correspondencia: su título en otra hoja es OTRO documento del mismo tipo
+        # (dos memorandos seguidos), salvo que la hoja diga que continúa
+        s -= P["titulo_otro"] * _t(r, tipo)
     # membrete que desaparece: las dos hojas anteriores traían el título (TDR, orden
     # del SIGA) y esta no. En un informe o una carta solo la 1ª hoja lo trae, así
     # que ahí no aplica.

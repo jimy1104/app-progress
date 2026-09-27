@@ -297,10 +297,19 @@ def preparar_ligero(page, dpi=150) -> dict:
     van a releer."""
     dpi = dpi_seguro(page, dpi)
     rgb = render(page, dpi, color=True)
-    limpia = suprimir_transparencia(aplanar_fondo(a_gris(rgb)))
+    gris = a_gris(rgb)
+    limpia = suprimir_transparencia(aplanar_fondo(gris))
     tinta = tinta_util(limpia, dpi)
     return {"en_blanco": tinta < UMBRAL_BLANCA, "tinta": round(tinta, 5),
-            "color": round(hay_color(rgb), 4), "dpi_origen": dpi_origen(page)}
+            "color": round(hay_color(rgb), 4), "dpi_origen": dpi_origen(page), "foto": fraccion_foto(gris)}
+
+
+def fraccion_foto(gris: np.ndarray) -> float:
+    """Fracción de la hoja con zonas oscuras grandes (fotografías, gráficos). El texto
+    solo, aun en hojas muy densas, queda por debajo de 0.12; una hoja de fotos pasa de 0.14."""
+    h, w = gris.shape
+    m = gris[int(h * 0.04): int(h * 0.96), int(w * 0.04): int(w * 0.96)]
+    return round(float((m < 150).mean()), 4)
 
 
 def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0, qr=False):
@@ -329,7 +338,7 @@ def preparar(page, dpi=DPI_OCR, enderezar=True, giro=0, qr=False):
         if sin_sellos is not None:
             sin_sellos, _ = rotar(sin_sellos, ang)
     tinta = tinta_util(limpia, dpi)
-    return {"limpia": limpia, "sin_sellos": sin_sellos, "inv": inv, "angulo": ang,
+    return {"limpia": limpia, "sin_sellos": sin_sellos, "inv": inv, "angulo": ang, "foto": fraccion_foto(gris),
             "en_blanco": tinta < UMBRAL_BLANCA, "tinta": round(tinta, 5), "color": round(frac_color, 4),
             "dpi_origen": dpi_origen(page), "dpi": dpi,
             "qr": leer_qr(gris) if (qr and tinta >= UMBRAL_BLANCA) else []}
