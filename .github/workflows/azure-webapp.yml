@@ -1,0 +1,39 @@
+# Deploys ShadowLab to an Azure App Service (Web App) using its publish profile.
+# Setup (once), in GitHub → Settings → Secrets and variables → Actions:
+#   Secret   AZURE_WEBAPP_PUBLISH_PROFILE = full content of the .PublishSettings file
+#   Variable AZURE_WEBAPP_NAME            = the Web App name (e.g. my-shadowlab)
+name: Deploy to Azure Web App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check configuration
+        env:
+          APP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          HAS_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE != '' }}
+        run: |
+          if [ -z "$APP_NAME" ]; then echo "::error::Falta la variable AZURE_WEBAPP_NAME (Settings → Secrets and variables → Actions → Variables)"; exit 1; fi
+          if [ "$HAS_PROFILE" != "true" ]; then echo "::error::Falta el secreto AZURE_WEBAPP_PUBLISH_PROFILE (Settings → Secrets and variables → Actions → Secrets)"; exit 1; fi
+
+      - name: Package site
+        run: |
+          mkdir -p dist
+          cp -r index.html css js samples staticwebapp.config.json server.js package.json web.config dist/
+
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: dist

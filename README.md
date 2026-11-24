@@ -58,3 +58,15 @@ python3 -m http.server 8080
 ```
 
 Abre `http://localhost:8080` (hace falta un servidor: los módulos JS no funcionan abriendo el archivo con doble clic).
+
+## Publicar en Azure App Service (con el archivo de publicación)
+
+El workflow `.github/workflows/azure-webapp.yml` publica la web en cada push a `main`.
+
+1. En GitHub → **Settings → Secrets and variables → Actions**:
+   - Pestaña **Secrets** → *New repository secret*: nombre `AZURE_WEBAPP_PUBLISH_PROFILE`, valor = todo el contenido del archivo `.PublishSettings`.
+   - Pestaña **Variables** → *New repository variable*: nombre `AZURE_WEBAPP_NAME`, valor = el nombre de tu Web App.
+2. En Azure → tu Web App → **Configuración → Configuración general**: activa *SCM Basic Auth Publishing Credentials* (necesario para el publish profile).
+3. GitHub → **Actions → Deploy to Azure Web App → Run workflow**.
+
+En Linux con Node, App Service ejecuta `npm start` (`server.js`, sin dependencias). En Windows, IIS sirve los archivos con `web.config`.

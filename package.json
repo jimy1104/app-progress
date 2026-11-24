@@ -1,0 +1,12 @@
+{
+  "name": "shadowlab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shadowing and listening practice web app (static files + tiny Node server for Azure App Service).",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
