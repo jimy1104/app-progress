@@ -555,7 +555,7 @@ export function expandContraction(c) {
   const m = c.match(/^(.*?)('m|'re|'s|'ve|'ll|'d|n't)$/);
   if (!m) return c;
   let [, base, suf] = m;
-  if (suf === "'s" && !/^(?:it|he|she|that|there|what|who|where|how|here|this|everything|nothing|something|everyone|let)$/.test(base)) return `${base} + 's (posesivo / possessive)`;
+  if (suf === "'s" && !/^(?:it|he|she|that|there|what|who|where|how|here|this|everything|nothing|something|everyone|let)$/.test(base)) return `${base} + 's (possessive)`;
   if (suf === "n't") return `${base} not`;
   return `${base} ${CONTRACTION_EXPANSION[suf]}`;
 }
@@ -563,7 +563,7 @@ export function expandContraction(c) {
 export const REDUCTIONS = {
   gonna: 'going to', wanna: 'want to', gotta: 'got to / have got to', kinda: 'kind of', sorta: 'sort of', lemme: 'let me', gimme: 'give me',
   dunno: "don't know", ya: 'you', "y'all": 'you all', "'cause": 'because', cuz: 'because', outta: 'out of', lotta: 'lot of', lotsa: 'lots of',
-  whatcha: 'what are you / what do you', gotcha: 'got you (entendido)', "ain't": "isn't / am not / haven't", innit: "isn't it", "'em": 'them',
+  whatcha: 'what are you / what do you', gotcha: 'got you (understood)', "ain't": "isn't / am not / haven't", innit: "isn't it", "'em": 'them',
   "c'mon": 'come on', nope: 'no', yep: 'yes', yeah: 'yes', hafta: 'have to', oughta: 'ought to', betcha: 'bet you', tryna: 'trying to',
   shoulda: 'should have', coulda: 'could have', woulda: 'would have', musta: 'must have', alright: 'all right', "'til": 'until',
 };

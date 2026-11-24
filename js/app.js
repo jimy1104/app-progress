@@ -1,4 +1,4 @@
-import { t, tr, setLang, getLang, applyStatic, LANGS, SPEECH_LOCALE, posName } from './i18n.js';
+import { t, tr, setLang, setContentLang, getLang, applyStatic, LANGS, SPEECH_LOCALE, posName } from './i18n.js';
 import * as store from './storage.js';
 import { parseSubtitles, findActive, findLastStarted, alignSecondary, tokenize, fmtTime, normalize } from './subtitles.js';
 import { Html5Player, YouTubePlayer, TtsPlayer, youtubeId, speak, isUnsupportedHost } from './player.js';
@@ -43,12 +43,12 @@ function init() {
 }
 
 function applyLanguage() {
-  setLang(native());
+  setLang(); setContentLang(native());
   applyStatic();
   buildProfileSwitch();
   buildModeSelect();
   buildToggles();
-  $('#helpBody').innerHTML = tr(HELP);
+  $('#helpBody').innerHTML = HELP.en;
   $('#rateSelect').value = String(S().rate || 1);
   renderSaved(); renderRoutine(); renderProgress();
   renderGameChrome();
@@ -602,7 +602,7 @@ function renderPopup(res, ctx) {
   html += `<div class="p-actions">
     <button class="btn small" data-a="listen">🔊 ${t('listen')}</button>
     <button class="btn small ${savedNow ? '' : 'primary'}" data-a="save">${savedNow ? '★ ' + t('unsave') : '☆ ' + t('saveWord')}</button>
-    <button class="btn small" data-a="ai">✦ IA</button>
+    <button class="btn small" data-a="ai">✦ AI</button>
     <span class="spacer"></span><button class="btn small" data-a="close">✕</button></div>`;
   popup.innerHTML = html;
   popup.querySelector('[data-a=listen]').onclick = () => { if (res.audio) new Audio(res.audio).play().catch(() => speak(w, speechLocale(), 0.8)); else speak(w, speechLocale(), 0.8); };
@@ -900,7 +900,7 @@ function exportCsv() {
   for (const w of Object.values(p.saved.words)) rows.push([w.word, w.meaning, w.ipa, w.example, w.exampleTr, w.context, w.contextTr]);
   for (const s of p.saved.sentences) rows.push([s.text, s.trans, '', '', '', s.title, '']);
   const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
-  download(`shadowlab-${p.name}.csv`, '﻿' + csv, 'text/csv');
+  download(`englishpro-${p.name}.csv`, '﻿' + csv, 'text/csv');
 }
 function download(name, text, type) {
   const a = document.createElement('a');
@@ -915,10 +915,10 @@ function renderRoutine() {
   const key = app.session ? app.session.title : '_';
   const done = p.routine[key] || {};
   host.innerHTML = `<h3 style="margin:4px 0">${t('routineTitle')}</h3>` + ROUTINE.map((st, k) => `
-    <div class="step${done[k] ? ' done' : ''}"><input type="checkbox" data-k="${k}" ${done[k] ? 'checked' : ''}><h4 dir="auto">${esc(tr(st.title))}</h4><p dir="auto">${esc(tr(st.text))}</p>
+    <div class="step${done[k] ? ' done' : ''}"><input type="checkbox" data-k="${k}" ${done[k] ? 'checked' : ''}><h4>${esc(st.title.en)}</h4><p>${esc(st.text.en)}</p>
     <button class="btn small" data-mode="${st.mode}">${t('useMode')}: ${t('m_' + st.mode)}</button></div>`).join('') +
     `<button class="btn small" id="btnResetRoutine">${t('resetRoutine')}</button>
-    <h3 style="margin:8px 0 0">${t('mistakesTitle')}</h3><ul class="tips">${MISTAKES.map(m => `<li dir="auto">${esc(tr(m))}</li>`).join('')}</ul>`;
+    <h3 style="margin:8px 0 0">${t('mistakesTitle')}</h3><ul class="tips">${MISTAKES.map(m => `<li>${esc(m.en)}</li>`).join('')}</ul>`;
   host.querySelectorAll('input[data-k]').forEach(cb => cb.onchange = () => { p.routine[key] = p.routine[key] || {}; p.routine[key][cb.dataset.k] = cb.checked; store.persist(); renderRoutine(); });
   host.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
   $('#btnResetRoutine').onclick = () => { p.routine[key] = {}; store.persist(); renderRoutine(); };
@@ -1263,10 +1263,10 @@ function bindUI() {
   document.addEventListener('click', e => { if (!popup.hidden && !popup.contains(e.target) && !e.target.closest('.w')) closePopup(); });
 
   // settings: export/import/reset
-  $('#btnExportData').onclick = () => download('shadowlab-backup.json', store.exportJSON(), 'application/json');
+  $('#btnExportData').onclick = () => download('englishpro-backup.json', store.exportJSON(), 'application/json');
   $('#inImport').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
-    try { store.importJSON(await f.text()); $('#dlgSettings').close(); applyLanguage(); toast(t('imported')); } catch { toast('JSON ✕'); }
+    try { store.importJSON(await f.text()); $('#dlgSettings').close(); applyLanguage(); toast(t('imported')); } catch { toast('Invalid backup file'); }
   };
   $('#btnReset').onclick = () => { if (confirm(t('confirmReset'))) { store.resetAll(); $('#dlgSettings').close(); applyLanguage(); } };
 

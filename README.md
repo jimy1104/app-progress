@@ -1,4 +1,4 @@
-# ShadowLab
+# EnglishPro
 
 Web estática para practicar **shadowing** con películas, series y vídeos: subtítulos duales, diccionario al pasar el ratón (español / árabe), análisis gramatical de cada frase, grabación de voz con puntuación, ejercicio de traducción y dos perfiles (2 personas).
 

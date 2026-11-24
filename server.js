@@ -35,4 +35,4 @@ http.createServer((req, res) => {
     if (req.method === 'HEAD') return res.end();
     fs.createReadStream(file).pipe(res);
   });
-}).listen(PORT, () => console.log(`ShadowLab listening on ${PORT}`));
+}).listen(PORT, () => console.log(`EnglishPro listening on ${PORT}`));

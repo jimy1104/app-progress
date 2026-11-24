@@ -24,7 +24,7 @@ function newProfile(id, name, native) {
 function defaults() {
   return {
     activeProfile: 'p1',
-    profiles: { p1: newProfile('p1', 'Persona 1', 'es'), p2: newProfile('p2', 'شخص 2', 'ar') },
+    profiles: { p1: newProfile('p1', 'Person 1', 'es'), p2: newProfile('p2', 'Person 2', 'ar') },
     ai: { key: '', model: 'claude-opus-5-5' },
     library: {},
   };
@@ -51,6 +51,9 @@ function load() {
     for (const id of Object.keys(s.profiles)) {
       s.profiles[id] = merge(newProfile(id, s.profiles[id].name || id, s.profiles[id].native || 'es'), s.profiles[id]);
     }
+    // Old default names → English defaults (custom names are kept).
+    const rename = { 'Persona 1': 'Person 1', 'Persona 2': 'Person 2', 'شخص 2': 'Person 2' };
+    for (const p of Object.values(s.profiles)) if (rename[p.name]) p.name = rename[p.name];
     return s;
   } catch { return defaults(); }
 }

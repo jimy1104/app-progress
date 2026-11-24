@@ -136,22 +136,84 @@ Object.assign(S.ar, {
   needVideoGame: 'حمّل أولًا فيديو (أو العرض التجريبي) مع ترجمة.', gameOverLives: '💔 نفدت الأرواح', gameDone: '🎉 أكملت المقطع!',
   showTrans: 'إظهار الترجمة', savedN: 'كلمات محفوظة',
 });
-S.en = Object.assign({}, S.es, {
-  load: 'Load video', settings: 'Settings', help: 'Help', emptyTitle: 'Practice shadowing with any movie',
-  emptyText: 'Load a video (file, YouTube or direct link) and its subtitles. Then listen, repeat, record yourself, translate and analyse the grammar of every line.',
-  tryDemo: 'Try the demo (synthetic voice)', tabSubs: 'Subtitles', tabGrammar: 'Grammar', tabSaved: 'Saved', tabRoutine: 'Routine', tabProgress: 'Progress',
-  check: 'Check', start: 'Start', cancel: 'Cancel', save: 'Save', words: 'Words', sentences: 'Sentences', review: 'Review',
-});
+S.en = {
+  load: 'Load video', settings: 'Settings', help: 'Help',
+  emptyTitle: 'Practice shadowing with any movie',
+  emptyText: 'Load a video (file, YouTube or direct link) and its subtitles. Then listen, repeat, record yourself, translate and study the grammar of every line.',
+  tryDemo: 'Try the demo (synthetic voice)',
+  speakLine: 'Hear this line with a synthetic voice (slow)', saveSentence: 'Save sentence', aiExplain: 'Explain with AI', fullscreen: 'Full screen',
+  prevLine: 'Previous line (A)', repeatLine: 'Repeat line (S)', playPause: 'Play / pause (Space)', nextLine: 'Next line (D)',
+  mode: 'Mode', record: 'Record myself (R)', playMine: 'Play my recording (P)', compare: 'Original, then my voice (C)',
+  myRecording: 'My recording', translateYourself: 'Translate it yourself', translateHint: 'Write what the line means in your language and compare.',
+  check: 'Check', tabSubs: 'Subtitles', tabGrammar: 'Grammar', tabSaved: 'Saved', tabRoutine: 'Routine', tabProgress: 'Progress',
+  searchSubs: 'Search subtitles', translateAll: 'Translate all', words: 'Words', sentences: 'Sentences', review: 'Review', exportAnki: 'Export (Anki)',
+  loadTitle: 'Load video and subtitles', srcFile: 'File on this computer', srcUrl: 'Link', srcTts: 'Text only (voice)',
+  videoFile: 'Video or audio (mp4, webm, mkv, mp3…)',
+  fileHint: 'The file is never uploaded: it plays in your browser, so full-length movies work with no size limit.',
+  videoUrl: 'YouTube, direct .mp4/.webm/.m3u8 link or Azure Blob',
+  urlHint: 'Supported: <b>YouTube</b> and direct links to video files (for example your Azure Blob Storage). Sites like Bilibili, Netflix or Disney+ do not let another website control their player: use a local file and its .srt subtitles instead.',
+  ttsHint: 'No video: a synthetic voice reads each line. Useful for transcripts, songs or texts.',
+  subsFile: 'Subtitles in the language you are learning (.srt, .vtt, .ass, .txt)', pasteSubs: '…or paste the subtitle text',
+  subs2File: 'Subtitles in your language (optional; otherwise they are translated automatically)', title: 'Title', cancel: 'Cancel', start: 'Start',
+  profiles: 'Profiles (2 people)', aiTitle: 'AI assistant (optional)',
+  aiHint: 'With a Claude API key you get in-depth grammar explanations, answers to your questions and tailored examples. Without a key the app still works with its built-in grammar engine.',
+  apiKey: 'Anthropic API key', aiModel: 'Model', aiWarn: 'The key is stored only in this browser. Do not use it on shared computers.',
+  data: 'Data', exportData: 'Export backup (JSON)', importData: 'Import backup', resetData: 'Delete everything', save: 'Save',
+  aiAskPh: 'Ask anything about this line…', ask: 'Ask',
+  m_watch: '👀 Watch with subtitles', m_mumble: '🤫 Mumbling', m_overlap: '📖 Overlapping (read along)',
+  m_shadow_line: '🗣 Line-by-line shadowing', m_shadow_full: '🏃 Continuous shadowing', m_record: '🎙 Record & compare', m_translate: '🌐 Translate each line',
+  t_autoPause: 'Pause after each line', t_loop: 'Repeat line', t_times: 'times', t_autoResume: 'Auto-continue after', t_gap: 'pause ×',
+  t_prevBtn: 'Back button', t_hide: 'Hide text', t_trans: 'Translation', t_blur: 'Blurred translation', t_karaoke: 'Karaoke',
+  t_stress: 'Stress map', t_autoRec: 'Record during pause', t_overlayRec: 'Record over audio (headphones)', t_offset: 'Sync',
+  line: 'Line', of: 'of', noSubs: 'No subtitles loaded', saved: 'Saved', removed: 'Removed', copied: 'Copied',
+  meaning: 'Meaning', definition: 'Definition', examples: 'Examples', fromVideo: 'In the video', partOf: 'Part of',
+  listen: 'Listen', saveWord: 'Save word', unsave: 'Remove', loading: 'Loading…', notFound: 'Not found in the dictionary.',
+  grammarOf: 'Grammar of this line', noGrammar: 'No special structures detected. Try “Explain with AI”.',
+  connected: 'Connected speech (how it really sounds)', intonation: 'Intonation', corpusTitle: 'Grammar of the whole video',
+  corpusHint: 'Tap a structure to see every line in the video that uses it.', seeAll: 'See every line with this structure',
+  filterOn: 'Filtering by', clear: 'Clear filter', mergedNext: 'Joined with the next line to analyse the full sentence.',
+  recNoMic: 'Could not access the microphone.', recording: 'Recording…', yourDur: 'Your voice', origDur: 'Original', recognized: 'What was understood',
+  noRecog: 'Your browser has no speech recognition (use Chrome or Edge for the score).', score: 'match',
+  yourTrans: 'Your translation', refTrans: 'Reference translation', similarity: 'similarity', writeFirst: 'Write your translation first.',
+  nothingSaved: 'Nothing saved yet. Hover a word and press ☆.', show: 'Show', know: 'I know it', again: 'Again', jump: 'Go to line',
+  reviewDone: 'Review finished!', library: 'Recent', open: 'Open', del: 'Delete', reselect: 'Choose the video file again',
+  needSubs: 'Add a subtitle file or paste the text.', needVideo: 'Choose a video or a link.', badUrl: 'This link cannot be controlled from here.',
+  unsupportedSite: 'This site (for example Bilibili) does not let another website control its player. Load the video as a file, or upload it to Azure Blob Storage and paste the direct link.',
+  translating: 'Translating…', translated: 'Translation ready', transFail: 'Could not translate (offline or limit reached).',
+  aiNoKey: 'Add your API key in Settings to use the AI.', aiThinking: 'The AI is analysing the line…', aiError: 'AI error',
+  literal: 'Literal translation', natural: 'Natural translation', vocab: 'Vocabulary', pronunciation: 'Pronunciation', culture: 'Context / usage',
+  stLines: 'lines practised', stRec: 'recordings', stMin: 'minutes practised', stStreak: 'day streak', stWords: 'saved words', stTrans: 'avg. translation',
+  last4w: 'Last 4 weeks', routineTitle: 'Shadowing routine (≈15 min per clip)', useMode: 'Use this mode', resetRoutine: 'Reset routine',
+  profileName: 'Name', nativeLang: 'Native language (for meanings)', targetLang: 'Learning', imported: 'Backup imported', confirmReset: 'Delete all data for both profiles?',
+  mistakesTitle: 'Common mistakes',
+  demoTitle: 'Demo — Shadowing', subsLoaded: 'subtitle lines loaded', untimed: 'Text without timings: it will be read by a synthetic voice.',
+  speakSlow: 'Slow', tags_q: 'question',
+  appShadow: 'Shadowing', appGame: 'Listen & complete', gameTitle: 'Listen & complete',
+  gameIntro: 'Listen and type the missing words. You can type while it plays. If the line ends with gaps, the video pauses and the clock starts: be quick! When time runs out you lose a life.',
+  lvl_basic: 'Basic', lvl_medium: 'Medium', lvl_hard: 'Hard',
+  lvlDesc_basic: '1 word per line · 5 lives', lvlDesc_medium: '50% of the words · 4 lives', lvlDesc_hard: '90% of the words · 3 lives',
+  startBegin: 'From the beginning', startHere: 'From the current line', g_score: 'Score', combo: 'Combo', lives: 'Lives',
+  hint: 'Hint', skip: 'Skip', replay: 'Replay line', listening: '🎧 Listen and type…', typeNow: '⏱ Type now!', timeUp: '⏰ Time’s up!',
+  perfect: '✨ Perfect!', results: 'Results', accuracy: 'Accuracy', maxCombo: 'Best combo', best: 'Best', newBest: '🏆 New record!',
+  missedWords: 'Words you missed', saveMissed: 'Save these words', playAgain: 'Play again', nextLevel: 'Next level',
+  exitGame: 'Exit', quit: 'End game', gameKeys: 'Enter = replay line · ↓ = hint · Esc = skip',
+  needVideoGame: 'Load a video (or the demo) with subtitles first.', gameOverLives: '💔 Out of lives', gameDone: '🎉 Clip completed!',
+  showTrans: 'Show translation', savedN: 'words saved',
+};
 
-let lang = 'es';
-export function setLang(l) { lang = S[l] ? l : 'es'; document.documentElement.lang = lang; }
-export function getLang() { return lang; }
-export function t(key) { return (S[lang] && S[lang][key]) ?? S.es[key] ?? key; }
-/** Pick the right language from an {es, ar, en} object. */
+// The interface is always English. The learner's native language is only used for
+// meanings, translations and grammar explanations (content).
+let lang = 'en';
+let contentLang = 'es';
+export function setLang() { lang = 'en'; document.documentElement.lang = 'en'; }
+export function setContentLang(l) { contentLang = l || 'es'; }
+export function getLang() { return contentLang; }
+export function t(key) { return S.en[key] ?? S.es[key] ?? key; }
+/** Pick the learner's language from an {es, ar, en} content object. */
 export function tr(obj) {
   if (obj == null) return '';
   if (typeof obj === 'string') return obj;
-  return obj[lang] ?? obj.es ?? obj.en ?? '';
+  return obj[contentLang] ?? obj.en ?? obj.es ?? '';
 }
 
 export function applyStatic(root = document) {

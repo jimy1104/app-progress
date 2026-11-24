@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ShadowLab</title>
-  <meta name="description" content="Shadowing, subtítulos duales, diccionario al pasar el ratón y análisis gramatical para practicar idiomas con películas y vídeos.">
+  <title>EnglishPro</title>
+  <meta name="description" content="Shadowing, listening games, dual subtitles, hover dictionary and grammar analysis to learn English with movies and videos.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236d5dfc'/%3E%3Cpath d='M18 40c6-10 10-16 14-16s8 6 14 16' stroke='white' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='20' r='5' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -12,7 +12,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="logo" aria-hidden="true">◐</span>
-      <span class="brand-name">ShadowLab</span>
+      <span class="brand-name">EnglishPro</span>
     </div>
     <div class="app-switch" id="appSwitch" role="tablist">
       <button class="app-btn active" data-app="shadow"><span>🗣</span> <b data-i18n="appShadow">Shadowing</b></button>
@@ -20,7 +20,7 @@
     </div>
     <div class="top-actions">
       <button class="btn primary" id="btnLoad" data-i18n="load">Cargar vídeo</button>
-      <div class="profiles" id="profileSwitch" role="tablist" aria-label="Perfil"></div>
+      <div class="profiles" id="profileSwitch" role="tablist" aria-label="Profile"></div>
       <button class="icon-btn" id="btnSettings" data-i18n-title="settings" title="Ajustes">⚙</button>
       <button class="icon-btn" id="btnHelp" data-i18n-title="help" title="Ayuda">?</button>
     </div>
@@ -67,7 +67,7 @@
         <div class="ctrl-group">
           <label class="sr-only" for="modeSelect" data-i18n="mode">Modo</label>
           <select id="modeSelect" class="select no-game"></select>
-          <select id="rateSelect" class="select" aria-label="Velocidad">
+          <select id="rateSelect" class="select" aria-label="Speed">
             <option value="0.5">0.5×</option><option value="0.6">0.6×</option><option value="0.75">0.75×</option>
             <option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option>
           </select>
@@ -86,7 +86,7 @@
         <details class="card" id="recCard" open>
           <summary data-i18n="myRecording">Mi grabación</summary>
           <div class="rec-body">
-            <canvas id="wave" height="70" aria-label="Forma de onda"></canvas>
+            <canvas id="wave" height="70" aria-label="Waveform"></canvas>
             <div class="rec-stats" id="recStats"></div>
             <div class="score" id="scoreBox"></div>
           </div>
@@ -160,7 +160,7 @@
     <form method="dialog" class="dlg-inner" id="loadForm">
       <header class="dlg-head">
         <h2 data-i18n="loadTitle">Cargar vídeo y subtítulos</h2>
-        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
       </header>
       <div class="seg" id="srcSeg">
         <button type="button" class="seg-btn active" data-v="file" data-i18n="srcFile">Archivo del ordenador</button>
@@ -217,7 +217,7 @@
     <form method="dialog" class="dlg-inner">
       <header class="dlg-head">
         <h2 data-i18n="settings">Ajustes</h2>
-        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
       </header>
       <h3 data-i18n="profiles">Perfiles (2 personas)</h3>
       <div id="profileEditor" class="profile-editor"></div>
@@ -252,7 +252,7 @@
     <form method="dialog" class="dlg-inner">
       <header class="dlg-head">
         <h2 data-i18n="help">Ayuda</h2>
-        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
       </header>
       <div id="helpBody" dir="auto"></div>
     </form>
@@ -268,7 +268,7 @@
     <form method="dialog" class="dlg-inner">
       <header class="dlg-head">
         <h2 data-i18n="aiExplain">Explicar con IA</h2>
-        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+        <button class="icon-btn" value="cancel" aria-label="Close">✕</button>
       </header>
       <div id="aiBody" dir="auto"></div>
       <div class="row ai-ask">

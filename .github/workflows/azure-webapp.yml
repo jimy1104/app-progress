@@ -1,4 +1,4 @@
-# Deploys ShadowLab to an Azure App Service (Web App) using its publish profile.
+# Deploys EnglishPro to an Azure App Service (Web App) using its publish profile.
 # Setup (once), in GitHub → Settings → Secrets and variables → Actions:
 #   Secret   AZURE_WEBAPP_PUBLISH_PROFILE = full content of the .PublishSettings file
 #   Variable AZURE_WEBAPP_NAME            = optional; read from the publish profile if missing

@@ -57,13 +57,13 @@ async function callClaude({ key, model, system, content, schema, maxTokens = 600
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (data && data.error && data.error.message) || `HTTP ${res.status}`;
-    const err = new Error(res.status === 401 ? 'Clave API no válida / مفتاح غير صالح' : msg);
+    const err = new Error(res.status === 401 ? 'Invalid API key' : msg);
     err.status = res.status; throw err;
   }
-  if (data.stop_reason === 'refusal') throw new Error('La IA no pudo responder a esta petición.');
+  if (data.stop_reason === 'refusal') throw new Error('The AI could not answer this request.');
   const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   if (schema) {
-    try { return JSON.parse(text); } catch { throw new Error('Respuesta incompleta de la IA (inténtalo de nuevo).'); }
+    try { return JSON.parse(text); } catch { throw new Error('Incomplete AI answer (please try again).'); }
   }
   return text;
 }
