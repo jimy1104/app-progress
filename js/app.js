@@ -8,6 +8,7 @@ import { analyze, corpus, connectedSpeech, intonation, isFunctionWord, phrasalAt
 import { Recorder, drawWave, scoreSpeech, similarity } from './recorder.js';
 import { explainLine, askAbout } from './ai.js';
 import { MODES, ROUTINE, MISTAKES, HELP, DEMO_SRT } from './content.js';
+import { Game, LEVELS } from './game.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -50,6 +51,7 @@ function applyLanguage() {
   $('#helpBody').innerHTML = tr(HELP);
   $('#rateSelect').value = String(S().rate || 1);
   renderSaved(); renderRoutine(); renderProgress();
+  renderGameChrome();
   if (app.cues.length) { buildSubList(); showLine(app.shown, true); }
   else renderGrammarEmpty();
   updateButtons();
@@ -170,6 +172,7 @@ async function loadSession({ kind, file, url, subsText, subs2Text, title, resume
   const prev = store.getState().library[store.libraryKey(title)];
   app.session = { title, kind, url: kind === 'url' ? url : '', subsText, subs2Text, untimed, trans: (prev && prev.trans) || {} };
   app.secondary = subs2Text ? alignSecondary(cues, parseSubtitles(subs2Text).cues) : null;
+  if (game.running) game.stop();
   app.filter = null; app.shown = -1; app.checked = {};
   Object.assign(engine, { target: null, loopCount: 0, pausedAtEnd: null, playOnce: null, lastT: 0, guardUntil: 0 });
   clearTimeout(engine.timer);
@@ -198,6 +201,7 @@ async function loadSession({ kind, file, url, subsText, subs2Text, title, resume
   if (startIdx > 0) seekToLine(startIdx, false);
   renderRoutine();
   updateButtons();
+  renderGameChrome();
   toast(`${title} · ${cues.length} ${t('subsLoaded')}`);
 }
 
@@ -276,6 +280,11 @@ function tick() {
 
 function onLineEnd(i) {
   const s = S(); const p = app.player; const cue = app.cues[i];
+  if (game.active && game.running) {
+    if (game.onLineEnd(i) === 'pause') { p.pause(); engine.pausedAtEnd = i; }
+    else { engine.target = null; engine.loopCount = 0; }
+    return;
+  }
   const dur = (cue.end - cue.start) / (Number(s.rate) || 1);
   if (s.mode !== 'watch') store.bump('lines');
 
@@ -345,10 +354,14 @@ function gotoLine(i, { keepLoop = false } = {}) {
 function currentIndex() { return engine.target != null ? engine.target : Math.max(0, app.shown); }
 function prevLine() { gotoLine(currentIndex() - 1); }
 function nextLine() { gotoLine(currentIndex() + 1); }
-function repeatLine() { gotoLine(currentIndex()); }
+function repeatLine() { if (game.active && game.running) { if (game.waiting) game.replay(); else seekToLine(currentIndex(), true); return; } gotoLine(currentIndex()); }
 
 function togglePlay() {
   const p = app.player; if (!p) { openLoad(); return; }
+  if (game.active) {
+    if (!game.running) { game.start(game.level, currentIndex()); return; }
+    if (game.waiting) { game.replay(); return; }
+  }
   clearSchedule(); engine.playOnce = null;
   if (p.paused()) {
     if (recorder.recording && engine.recAuto) stopRecording();
@@ -394,6 +407,17 @@ function showLine(i, force = false) {
   app.shown = i;
   const s = S(); const cue = cues[i];
   $('#lineCounter').textContent = `${t('line')} ${i + 1} ${t('of')} ${cues.length} · ${fmtTime(cue.start)}`;
+  if (game.active) {
+    if (changed) game.onLineShown(i);
+    renderGameLine(i);
+    const lt = $('#lineTrans');
+    lt.classList.toggle('off', !s.gameShowTrans || !game.running); lt.classList.remove('blur');
+    lt.textContent = transFor(i);
+    if (s.gameShowTrans) ensureTrans(i).then(txt => { if (app.shown === i) lt.textContent = txt || ''; });
+    if (changed || force) highlightList(i);
+    renderHud();
+    return;
+  }
   const saved = store.savedWordSet();
   const toks = tokenize(cue.text);
   let charTotal = 0; toks.forEach(k => { if (k.w) charTotal += k.t.length; });
@@ -430,6 +454,7 @@ function showLine(i, force = false) {
 let karaokeCount = -1;
 function updateKaraoke(tt, playing) {
   const s = S(); const i = app.shown; const cue = app.cues[i];
+  if (game.active) return;
   if (!cue || !s.karaoke || s.hideText) { if (karaokeCount !== -1) { $$('#lineText .w.sung').forEach(e => e.classList.remove('sung')); karaokeCount = -1; } return; }
   const frac = (tt - cue.start) / Math.max(0.2, cue.end - cue.start);
   const spans = $$('#lineText .w');
@@ -671,7 +696,7 @@ function renderGrammar(i) {
       if (rule.id === 'phrasal') foundHtml = items.map(x => `<b>${esc(x.m.detail)}</b> (${esc(x.frag)}) — <span dir="auto">${esc(tr(x.m.meaning))}</span>`).join('<br>');
       const corpusKey = rule.id === 'phrasal' ? 'pv:' + detail : rule.id;
       const cnt = app.corpus && app.corpus.get(corpusKey) ? app.corpus.get(corpusKey).lines.length : 0;
-      html += `<div class="g-card"><h4>${esc(name)} <span class="lvl">${rule.level}</span></h4>
+      html += `<div class="g-card lvl-${rule.level}"><h4>${esc(name)} <span class="lvl">${rule.level}</span></h4>
         <div class="found">${foundHtml}</div>
         <div class="struct">${esc(structure)}</div>
         <p dir="auto">${esc(explain)}</p>
@@ -956,6 +981,207 @@ function saveSettings() {
   applyLanguage();
 }
 
+
+// ------------------------------------------------------------------ listening game ("Escucha y completa")
+const game = new Game({
+  cues: () => app.cues,
+  seekToLine: (i, play) => { clearSchedule(); seekToLine(i, play); },
+  pause: () => { if (app.player) app.player.pause(); },
+  play: () => { if (app.player) app.player.play(); },
+  t,
+  renderLine: i => { if (app.shown === i) { renderGameLine(i); renderHud(); } else showLine(i, true); },
+  renderTimer: (frac, left) => renderTimer(frac, left),
+  focusBlank: (i, bi) => { if (app.shown !== i || bi < 0) return; const el = $(`#lineText .blank-in[data-b="${bi}"]`); if (el) el.focus({ preventScroll: true }); },
+  flash: (msg, kind) => flash(msg, kind),
+  floatPoints: txt => floatText(txt, 'pts'),
+  onChange: () => { document.body.classList.toggle('game-running', game.running); renderHud(); renderGameChrome(true); },
+  onFinish: r => showResults(r),
+});
+
+function setApp(name) {
+  const on = name === 'game';
+  if (on === game.active) return;
+  game.active = on;
+  if (!on && game.running) game.stop();
+  document.body.classList.toggle('game-mode', on);
+  $$('#appSwitch .app-btn').forEach(b => b.classList.toggle('active', b.dataset.app === name));
+  clearSchedule(); engine.loopCount = 0;
+  if (app.player && !app.player.paused()) app.player.pause();
+  renderGameChrome();
+  if (app.cues.length) showLine(app.shown, true);
+}
+
+function gameKey() { return (app.session ? app.session.title : '') + '|' + game.level; }
+
+function renderGameChrome(light = false) {
+  const active = game.active;
+  const startEl = $('#gameStart'); const hud = $('#gameHud'); const bar = $('#gameBar');
+  hud.hidden = !active || !game.running;
+  $('#gameTimer').hidden = !active || !game.running || !game.timer;
+  $('#lineText').hidden = active && !game.running;
+  startEl.hidden = !active || game.running;
+  if (active && !game.running && !light) {
+    const best = P().game.best;
+    const title = app.session ? app.session.title : '';
+    startEl.innerHTML = `<h2 class="grad-text">🎧 ${t('gameTitle')}</h2><p class="muted" dir="auto">${t('gameIntro')}</p>
+      <div class="levels">${Object.entries(LEVELS).map(([k, L]) => `<button class="level-card lv-${k}${game.level === k ? ' sel' : ''}" data-lv="${k}">
+        <span class="lv-emoji">${L.emoji}</span><b>${t('lvl_' + k)}</b><small dir="auto">${t('lvlDesc_' + k)}</small>
+        ${best[title + '|' + k] ? `<span class="lv-best">🏆 ${best[title + '|' + k]}</span>` : ''}</button>`).join('')}</div>
+      ${app.cues.length ? `<div class="row wrap" style="justify-content:center"><button class="btn primary big" data-go="0">▶ ${t('startBegin')}</button>${app.shown > 0 ? `<button class="btn big" data-go="here">${t('startHere')} (${app.shown + 1})</button>` : ''}</div>`
+        : `<div class="row wrap" style="justify-content:center"><button class="btn primary big" data-load>${t('load')}</button><button class="btn big" data-demo>${t('tryDemo')}</button></div>`}
+      <p class="muted small">${t('gameKeys')}</p>`;
+    startEl.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { game.level = b.dataset.lv; renderGameChrome(); });
+    startEl.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { if (!app.player) return; game.start(game.level, b.dataset.go === 'here' ? app.shown : 0); });
+    const l = startEl.querySelector('[data-load]'); if (l) l.onclick = openLoad;
+    const d = startEl.querySelector('[data-demo]'); if (d) d.onclick = () => $('#btnDemo').click();
+  }
+  if (active) {
+    bar.innerHTML = game.running ? `
+      <button class="btn" data-g="replay">↺ ${t('replay')}</button>
+      <button class="btn" data-g="hint">💡 ${t('hint')}</button>
+      <button class="btn" data-g="skip">⏭ ${t('skip')}</button>
+      <button class="chip${S().gameShowTrans ? ' on' : ''}" data-g="trans"><span class="dot"></span>${t('showTrans')}</button>
+      <span class="spacer"></span>
+      <button class="btn danger" data-g="quit">✕ ${t('quit')}</button>` : '';
+    bar.querySelectorAll('[data-g]').forEach(b => b.onclick = () => gameAction(b.dataset.g));
+  }
+  if (active) $('#emptyState').hidden = true;
+  else $('#emptyState').hidden = !!app.player;
+}
+
+function gameAction(a) {
+  const i = app.shown;
+  if (a === 'replay') repeatLine();
+  if (a === 'hint') game.hint(i);
+  if (a === 'skip') { if (game.waiting) game.timeUp(true); else { const ln = game.line(i); ln.blanks.forEach(b => { if (!b.done && !b.revealed) { b.revealed = true; game.missedWords.push(b.word); } }); game.combo = 0; renderGameLine(i); renderHud(); } }
+  if (a === 'trans') { S().gameShowTrans = !S().gameShowTrans; store.persist(); renderGameChrome(true); showLine(app.shown, true); }
+  if (a === 'quit') game.finish(true);
+}
+
+function renderGameLine(i) {
+  const host = $('#lineText');
+  host.classList.remove('hidden-text');
+  const cue = app.cues[i]; if (!cue) { host.innerHTML = ''; return; }
+  if (!game.running) { host.innerHTML = ''; return; }
+  const { toks, blanks } = game.line(i);
+  const byTok = new Map(blanks.map((b, bi) => [b.tokIdx, bi]));
+  const focused = document.activeElement && document.activeElement.classList.contains('blank-in') ? Number(document.activeElement.dataset.b) : -1;
+  host.innerHTML = toks.map((k, ti) => {
+    if (!byTok.has(ti)) return k.w ? `<span class="w" data-s="${k.s}">${esc(k.t)}</span>` : esc(k.t);
+    const bi = byTok.get(ti); const b = blanks[bi];
+    if (b.done) return `<span class="w blank ok" data-s="${k.s}">${esc(b.word)}</span>`;
+    if (b.revealed) return `<span class="w blank miss" data-s="${k.s}">${esc(b.word)}</span>`;
+    const w = Math.max(3, [...b.word].length);
+    return `<input class="blank-in" data-b="${bi}" data-i="${i}" value="${esc(b.typed)}" style="width:calc(${w}ch + 18px)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" dir="ltr" aria-label="blank ${bi + 1}">`;
+  }).join('');
+  const next = blanks.findIndex(b => !b.done && !b.revealed);
+  const want = focused >= 0 && blanks[focused] && !blanks[focused].done ? focused : next;
+  if (want >= 0) { const el = host.querySelector(`.blank-in[data-b="${want}"]`); if (el) { el.focus({ preventScroll: true }); const v = el.value; el.setSelectionRange(v.length, v.length); } }
+}
+
+function bindGameInputs() {
+  const host = $('#lineText');
+  host.addEventListener('input', e => {
+    const el = e.target.closest('.blank-in'); if (!el) return;
+    const res = game.type(Number(el.dataset.i), Number(el.dataset.b), el.value);
+    if (res === 'prefix' || res === 'wrong' || res === '') { el.classList.toggle('wrong', res === 'wrong'); el.classList.toggle('prefix', res === 'prefix'); }
+    if (res === 'wrong') { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+  });
+  host.addEventListener('keydown', e => {
+    const el = e.target.closest('.blank-in'); if (!el) return;
+    if (e.key === 'Enter') { e.preventDefault(); gameAction('replay'); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); gameAction('hint'); }
+    else if (e.key === 'Escape') { e.preventDefault(); gameAction('skip'); }
+    else if (e.key === 'Backspace' && !el.value) { const prev = el.previousElementSibling && [...host.querySelectorAll('.blank-in')].filter(x => Number(x.dataset.b) < Number(el.dataset.b)).pop(); if (prev) { e.preventDefault(); prev.focus(); } }
+    else if (e.key === ' ' || e.key === 'Tab') {
+      const all = [...host.querySelectorAll('.blank-in')]; const k = all.indexOf(el);
+      if (all[k + 1] && e.key === ' ' && el.value.trim()) { e.preventDefault(); all[k + 1].focus(); }
+    }
+  });
+}
+
+function renderHud() {
+  if (!game.active) return;
+  const hud = $('#gameHud');
+  hud.hidden = !game.running;
+  $('#gameTimer').hidden = !game.running || !game.timer;
+  if (!game.running) return;
+  const L = LEVELS[game.level];
+  const hearts = '❤️'.repeat(Math.max(0, game.lives)) + '🖤'.repeat(Math.max(0, L.lives - game.lives));
+  const mult = Math.min(3, 1 + Math.floor(game.combo / 5) * 0.5);
+  hud.innerHTML = `<span class="hud-pill lv-${game.level}">${L.emoji} ${t('lvl_' + game.level)}</span>
+    <span class="hud-score"><small>${t('g_score')}</small><b>${game.score}</b></span>
+    <span class="hud-pill combo${game.combo >= 5 ? ' hot' : ''}">🔥 ${game.combo}${mult > 1 ? ` · ×${mult}` : ''}</span>
+    <span class="hud-hearts" title="${t('lives')}">${hearts}</span>
+    <span class="hud-state">${game.waiting ? t('typeNow') : t('listening')}</span>`;
+}
+
+function renderTimer(frac, left) {
+  const tm = $('#gameTimer'); tm.hidden = false;
+  const bar = tm.querySelector('i');
+  bar.style.width = (frac * 100).toFixed(1) + '%';
+  bar.style.background = frac > 0.5 ? 'var(--good)' : frac > 0.25 ? 'var(--warn)' : 'var(--bad)';
+  tm.querySelector('.secs').textContent = left.toFixed(1) + 's';
+  tm.classList.toggle('urgent', frac <= 0.25);
+}
+
+function flash(msg, kind = 'good') { floatText(msg, 'flash ' + kind); }
+function floatText(txt, cls) {
+  const layer = $('#floatLayer');
+  const el = document.createElement('div');
+  el.className = 'float ' + cls; el.textContent = txt;
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+function showResults(r) {
+  const p = P(); const key = gameKey();
+  const prevBest = p.game.best[key] || 0;
+  const isBest = r.score > prevBest;
+  if (isBest) p.game.best[key] = r.score;
+  p.game.played = (p.game.played || 0) + 1;
+  store.persist();
+  const stars = r.accuracy >= 90 ? 3 : r.accuracy >= 70 ? 2 : r.accuracy >= 40 ? 1 : 0;
+  const order = Object.keys(LEVELS); const nextLv = order[order.indexOf(r.level) + 1];
+  const host = $('#gameResults');
+  host.innerHTML = `<header class="dlg-head"><h2>${r.lives <= 0 ? t('gameOverLives') : r.quit ? '🏁 ' + t('results') : t('gameDone')}</h2><button class="icon-btn" value="cancel">✕</button></header>
+    <div class="res-stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+    <div class="res-score grad-text">${r.score}</div>
+    ${isBest ? `<div class="res-best">${t('newBest')}</div>` : `<div class="muted" style="text-align:center">${t('best')}: ${prevBest}</div>`}
+    <div class="stat-grid three">
+      <div class="stat"><b>${r.accuracy}%</b><span>${t('accuracy')}</span></div>
+      <div class="stat"><b>${r.maxCombo}</b><span>${t('maxCombo')}</span></div>
+      <div class="stat"><b>${r.correct}</b><span>${t('words')}</span></div>
+    </div>
+    ${r.missed.length ? `<h3>${t('missedWords')}</h3><div class="missed">${r.missed.slice(0, 40).map(w => `<span class="tag big" dir="ltr">${esc(w)}</span>`).join('')}</div>
+      <button type="button" class="btn" id="btnSaveMissed">☆ ${t('saveMissed')}</button>` : ''}
+    <div class="dlg-foot"><button type="button" class="btn" data-r="exit">${t('exitGame')}</button><span class="spacer"></span>
+      <button type="button" class="btn" data-r="again">↺ ${t('playAgain')}</button>
+      ${nextLv ? `<button type="button" class="btn primary" data-r="next">${LEVELS[nextLv].emoji} ${t('nextLevel')}</button>` : ''}</div>`;
+  const dlg = $('#dlgGame');
+  host.querySelector('[data-r=exit]').onclick = () => { dlg.close(); renderGameChrome(); };
+  host.querySelector('[data-r=again]').onclick = () => { dlg.close(); game.start(r.level, game.startIdx || 0); };
+  const nx = host.querySelector('[data-r=next]'); if (nx) nx.onclick = () => { dlg.close(); game.start(nextLv, game.startIdx || 0); };
+  const sm = host.querySelector('#btnSaveMissed');
+  if (sm) sm.onclick = async () => {
+    sm.disabled = true;
+    let n = 0;
+    for (const w of r.missed.slice(0, 40)) {
+      if (store.isWordSaved(w)) continue;
+      let meaning = '';
+      try { meaning = await translate(w, target(), native()); } catch {}
+      const line = app.cues.findIndex(c => c.text.includes(w));
+      store.saveWord({ word: w, lemma: w, meaning, ipa: '', example: '', exampleTr: '', context: line >= 0 ? app.cues[line].text : '', contextTr: line >= 0 ? transFor(line) : '', line, title: app.session ? app.session.title : '' });
+      n++;
+    }
+    sm.textContent = `✓ ${n} ${t('savedN')}`;
+    renderSaved(); refreshSavedMarks(); renderProgress();
+  };
+  dlg.onclose = () => renderGameChrome();
+  if (!dlg.open) dlg.showModal();
+  renderGameChrome();
+}
+
 // ------------------------------------------------------------------ misc UI
 function switchTab(name) {
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -997,6 +1223,8 @@ function bindUI() {
   });
 
   $('#btnPlay').onclick = togglePlay;
+  $$('#appSwitch .app-btn').forEach(b => b.onclick = () => setApp(b.dataset.app));
+  bindGameInputs();
   $('#btnPrev').onclick = prevLine; $('#btnNext').onclick = nextLine; $('#btnRepeat').onclick = repeatLine;
   $('#btnRecord').onclick = toggleRecord; $('#btnPlayMine').onclick = playMine; $('#btnCompare').onclick = compare;
   $('#modeSelect').onchange = e => setMode(e.target.value);
@@ -1022,6 +1250,7 @@ function bindUI() {
     if (e.target.closest('.w')) return;
     const i = Number(li.dataset.i);
     if (e.target.closest('.star')) { toggleSaveLine(i); return; }
+    if (game.active && game.running) return;
     gotoLine(i);
   });
   ol.addEventListener('mouseover', e => { const li = e.target.closest('.sub-item'); if (li) tokenizeListItem(li); });

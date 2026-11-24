@@ -110,6 +110,32 @@ const S = {
     speakSlow: 'بطيء', tags_q: 'سؤال',
   },
 };
+Object.assign(S.es, {
+  appShadow: 'Shadowing', appGame: 'Escucha y completa', gameTitle: 'Escucha y completa',
+  gameIntro: 'Escucha y escribe las palabras que faltan. Puedes escribir mientras suena. Si la frase termina con huecos, el vídeo se pausa y corre el reloj: ¡sé rápido! Si se acaba el tiempo pierdes una vida.',
+  lvl_basic: 'Básico', lvl_medium: 'Medio', lvl_hard: 'Difícil',
+  lvlDesc_basic: '1 palabra por frase · 5 vidas', lvlDesc_medium: '50% de las palabras · 4 vidas', lvlDesc_hard: '90% de las palabras · 3 vidas',
+  startBegin: 'Desde el principio', startHere: 'Desde la frase actual', g_score: 'Puntos', combo: 'Combo', lives: 'Vidas',
+  hint: 'Pista', skip: 'Saltar', replay: 'Repetir frase', listening: '🎧 Escucha y escribe…', typeNow: '⏱ ¡Escribe ya!', timeUp: '⏰ ¡Tiempo!',
+  perfect: '✨ ¡Perfecto!', results: 'Resultados', accuracy: 'Precisión', maxCombo: 'Combo máximo', best: 'Récord', newBest: '🏆 ¡Nuevo récord!',
+  missedWords: 'Palabras que fallaste', saveMissed: 'Guardar estas palabras', playAgain: 'Jugar otra vez', nextLevel: 'Siguiente nivel',
+  exitGame: 'Salir', quit: 'Terminar partida', gameKeys: 'Enter = repetir frase · ↓ = pista · Esc = saltar',
+  needVideoGame: 'Carga primero un vídeo (o la demo) con subtítulos.', gameOverLives: '💔 Sin vidas', gameDone: '🎉 ¡Clip completado!',
+  showTrans: 'Ver traducción', savedN: 'palabras guardadas',
+});
+Object.assign(S.ar, {
+  appShadow: 'شادوينغ', appGame: 'استمع وأكمل', gameTitle: 'استمع وأكمل',
+  gameIntro: 'استمع واكتب الكلمات الناقصة. يمكنك الكتابة أثناء التشغيل. إذا انتهت الجملة وبقيت فراغات يتوقف الفيديو ويبدأ العدّ التنازلي: كن سريعًا! إذا انتهى الوقت تخسر حياة.',
+  lvl_basic: 'مبتدئ', lvl_medium: 'متوسط', lvl_hard: 'صعب',
+  lvlDesc_basic: 'كلمة واحدة في كل جملة · 5 أرواح', lvlDesc_medium: '50% من الكلمات · 4 أرواح', lvlDesc_hard: '90% من الكلمات · 3 أرواح',
+  startBegin: 'من البداية', startHere: 'من الجملة الحالية', g_score: 'النقاط', combo: 'سلسلة', lives: 'أرواح',
+  hint: 'تلميح', skip: 'تخطَّ', replay: 'أعد الجملة', listening: '🎧 استمع واكتب…', typeNow: '⏱ اكتب الآن!', timeUp: '⏰ انتهى الوقت!',
+  perfect: '✨ ممتاز!', results: 'النتائج', accuracy: 'الدقة', maxCombo: 'أطول سلسلة', best: 'الرقم القياسي', newBest: '🏆 رقم قياسي جديد!',
+  missedWords: 'كلمات أخطأت فيها', saveMissed: 'احفظ هذه الكلمات', playAgain: 'العب مرة أخرى', nextLevel: 'المستوى التالي',
+  exitGame: 'خروج', quit: 'أنهِ اللعبة', gameKeys: 'Enter = أعد الجملة · ↓ = تلميح · Esc = تخطَّ',
+  needVideoGame: 'حمّل أولًا فيديو (أو العرض التجريبي) مع ترجمة.', gameOverLives: '💔 نفدت الأرواح', gameDone: '🎉 أكملت المقطع!',
+  showTrans: 'إظهار الترجمة', savedN: 'كلمات محفوظة',
+});
 S.en = Object.assign({}, S.es, {
   load: 'Load video', settings: 'Settings', help: 'Help', emptyTitle: 'Practice shadowing with any movie',
   emptyText: 'Load a video (file, YouTube or direct link) and its subtitles. Then listen, repeat, record yourself, translate and analyse the grammar of every line.',

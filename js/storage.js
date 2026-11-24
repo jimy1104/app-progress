@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   autoPause: false, loopLine: false, repeatCount: 3, autoResume: false, gapFactor: 1.3,
   showPrevBtn: true, hideText: false, showTranslation: true, blurTranslation: false,
   karaoke: true, stressMap: false, autoRecord: false, overlayRecord: false,
-  rate: 1, offset: 0,
+  rate: 1, offset: 0, gameShowTrans: false,
 };
 
 function newProfile(id, name, native) {
@@ -17,6 +17,7 @@ function newProfile(id, name, native) {
     saved: { words: {}, sentences: [] },
     stats: { days: {}, lines: 0, recordings: 0, translations: 0, transScoreSum: 0 },
     routine: {},
+    game: { best: {}, played: 0 },
   };
 }
 
