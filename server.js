@@ -14,7 +14,48 @@ const TYPES = {
 };
 const BLOCKED = new Set(['server.js', 'package.json', 'web.config']);
 
+// ---------------------------------------------------------------- YouTube subtitles (best effort)
+// The browser cannot read YouTube captions (CORS), so the server asks YouTube's player API for the
+// caption tracks and downloads the English one (or a machine translation into ?tlang=xx).
+const YT_CLIENT = { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 34, hl: 'en', gl: 'US' };
+const YT_UA = 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip';
+const ytCache = new Map();
+async function youtubeSubs(videoId, lang, tlang) {
+  const key = `${videoId}|${lang}|${tlang}`;
+  if (ytCache.has(key)) return ytCache.get(key);
+  const r = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'user-agent': YT_UA, 'x-youtube-client-name': '3', 'x-youtube-client-version': YT_CLIENT.clientVersion },
+    body: JSON.stringify({ context: { client: YT_CLIENT }, videoId, contentCheckOk: true, racyCheckOk: true }),
+  });
+  if (!r.ok) throw new Error('YouTube player API ' + r.status);
+  const data = await r.json();
+  const tracks = (((data.captions || {}).playerCaptionsTracklistRenderer || {}).captionTracks) || [];
+  if (!tracks.length) { const e = new Error('This video has no subtitles'); e.status = 404; throw e; }
+  const pick = l => tracks.find(t => t.languageCode.startsWith(l) && t.kind !== 'asr') || tracks.find(t => t.languageCode.startsWith(l));
+  const want = pick(tlang || lang);
+  const base = want || pick(lang) || tracks.find(t => t.kind !== 'asr') || tracks[0];
+  let url = base.baseUrl.replace(/&fmt=[^&]*/, '') + '&fmt=json3';
+  if (!want) url += '&tlang=' + encodeURIComponent(tlang || lang);
+  const s = await fetch(url, { headers: { 'user-agent': YT_UA } });
+  const text = await s.text();
+  if (!s.ok || text.length < 30) throw new Error('YouTube refused the subtitle download');
+  const label = (base.name && (base.name.simpleText || (base.name.runs || []).map(x => x.text).join(''))) || base.languageCode;
+  const out = { text, label: label + (base.kind === 'asr' ? ' (auto)' : '') + (want ? '' : ' → ' + (tlang || lang)) };
+  ytCache.set(key, out);
+  if (ytCache.size > 200) ytCache.delete(ytCache.keys().next().value);
+  return out;
+}
+
 http.createServer((req, res) => {
+  if (req.url.startsWith('/api/yt-subs')) {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const v = q.get('v') || ''; const lang = (q.get('lang') || 'en').slice(0, 5); const tlang = (q.get('tlang') || '').slice(0, 5);
+    const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+    if (!/^[\w-]{6,20}$/.test(v) || !/^[a-z]{2}(-[A-Za-z]{2})?$/.test(lang) || (tlang && !/^[a-z]{2}(-[A-Za-z]{2})?$/.test(tlang))) return send(400, { error: 'bad request' });
+    youtubeSubs(v, lang, tlang).then(r => send(200, r)).catch(e => send(e.status || 502, { error: String(e.message || e) }));
+    return;
+  }
   let urlPath;
   try { urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400); return res.end(); }
   if (urlPath.endsWith('/')) urlPath += 'index.html';

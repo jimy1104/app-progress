@@ -149,6 +149,14 @@ async function doLoadFromDialog() {
   const videoFile = $('#inVideo').files[0];
   const url = $('#inUrl').value.trim();
   let title = $('#inTitle').value.trim();
+  let autoTrans = '';
+  const ytId = kind === 'url' ? youtubeId(url) : null;
+  if (!subsText && ytId) {
+    toast(t('ytFetching'), 8000);
+    const got = await fetchYouTubeSubs(ytId);
+    if (got) { subsText = got.en; autoTrans = got.native; if (!$('#inTitle').value.trim()) $('#inTitle').value = got.label; }
+    else { toast(t('ytFail'), 9000); return false; }
+  }
   if (!subsText) { toast(t('needSubs')); return false; }
   if (kind === 'file' && !videoFile) { toast(t('needVideo')); return false; }
   if (kind === 'url') {
@@ -157,8 +165,19 @@ async function doLoadFromDialog() {
   }
   if (!title) title = (videoFile && videoFile.name.replace(/\.[^.]+$/, '')) || (subsFile && subsFile.name.replace(/\.[^.]+$/, '')) || url || 'Clip';
   $('#dlgLoad').close();
-  await loadSession({ kind, file: videoFile, url, subsText, subs2Text, title });
+  await loadSession({ kind, file: videoFile, url, subsText, subs2Text: subs2Text || autoTrans, title });
   return true;
+}
+
+/** Ask our server (Azure App Service) to download YouTube's captions. Returns null if it can't. */
+async function fetchYouTubeSubs(id) {
+  const get = async q => { const r = await fetch(`api/yt-subs?v=${encodeURIComponent(id)}&${q}`); if (!r.ok) throw new Error(r.status); return r.json(); };
+  try {
+    const en = await get('lang=en');
+    let nat = '';
+    if (native() !== 'en') { try { nat = (await get(`lang=en&tlang=${native()}`)).text; } catch {} }
+    return { en: en.text, native: nat, label: 'YouTube ' + id };
+  } catch { return null; }
 }
 
 async function loadSession({ kind, file, url, subsText, subs2Text, title, resumeAt }) {

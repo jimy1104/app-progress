@@ -1,6 +1,6 @@
 // EnglishPro overlay: mounted on top of a <video> in whatever page (or iframe) holds it.
 // Two modes: "Shadowing" (pause per line, repeat, prev/next) and "Listen & type" (timed blanks game).
-import { parseSubtitles, findActive, findLastStarted, tokenize, fmtTime } from './subtitles.js';
+import { parseSubtitles, findActive, findLastStarted, tokenize, fmtTime, alignSecondary, words } from './subtitles.js';
 import { t, tr, setContentLang, LANGS, posName } from './i18n.js';
 import { Game, LEVELS } from './game.js';
 import { lookup } from './dictionary.js';
@@ -29,12 +29,24 @@ const native = () => prof().native || 'es';
 const savedOf = () => (cfg.saved[cfg.active] = cfg.saved[cfg.active] || {});
 
 // ------------------------------------------------------------------ mount
-export async function mount(initialVideo, findVideo) {
+export async function mount(initialVideo, findVideo, candidates = []) {
   await loadCfg();
   setContentLang(native());
   const ui = new Overlay(initialVideo, findVideo);
   await ui.init();
+  for (const c of candidates) ui.addCandidate(c);
+  ui.afterMount();
   return ui;
+}
+
+const HOST = location.hostname;
+const IS_YT = /(^|\.)youtube(-nocookie)?\.com$/.test(HOST);
+const IS_NETFLIX = /(^|\.)netflix\.com$/.test(HOST);
+const EN_WORDS = new Set('the you i to a and it is that what of in me my we this don\'t i\'m your for on be have not are was no do he she just know can get go with all so they there it\'s here right like'.split(' '));
+function englishScore(cues) {
+  let n = 0, hit = 0;
+  for (const c of cues.slice(0, 120)) for (const w of words(c.text)) { n++; if (EN_WORDS.has(w)) hit++; }
+  return n ? hit / n : 0;
 }
 
 class Overlay {
@@ -44,6 +56,7 @@ class Overlay {
     this.mode = 'shadow'; this.shown = -1; this.visible = true; this.tab = 'setup';
     this.eng = { target: null, loopCount: 0, pausedAtEnd: null, timer: null, guardUntil: 0, expect: 0, lastT: 0 };
     this.popup = { word: null, pinned: false, resume: false };
+    this.cands = new Map(); this.secondary = null; this.autoLoaded = false;
   }
 
   async init() {
@@ -86,7 +99,7 @@ class Overlay {
     this.bind();
     this.renderToggles();
     this.game = this.makeGame();
-    this.openPanel('setup');
+    this.$('.side').hidden = true; this.tab = 'setup';
     this.renderCaption();
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
@@ -94,7 +107,67 @@ class Overlay {
     document.addEventListener('webkitfullscreenchange', () => this.attach());
     // Players sometimes replace their <video>: follow it.
     setInterval(() => { if (!this.video.isConnected) { const v = this.findVideo(); if (v) this.video = v; } }, 1000);
-    this.toast('Load the English subtitles (.srt / .vtt) to start.');
+    this.nativeCaptionsStyle = document.createElement('style');
+    this.nativeCaptionsStyle.textContent = '.ytp-caption-window-container,.caption-window,.player-timedtext,.player-timedtext-text-container{display:none!important}';
+  }
+
+  // ---------------------------------------------------------------- automatic subtitles
+  afterMount() {
+    if (this.cues.length) return;
+    this.toast('🔎 Looking for subtitles…');
+    if (IS_YT) window.postMessage({ __ep: 'yt-load', lang: 'en', native: native() }, '*');
+    clearTimeout(this._noSubs);
+    this._noSubs = setTimeout(() => {
+      if (this.cues.length) return;
+      this.toast('No English subtitles yet: turn ON English subtitles (CC) in the player once — EnglishPro grabs them automatically.', 9000);
+      this.openPanel('setup');
+    }, IS_YT ? 5000 : 3000);
+  }
+  onPageEvent(ev) {
+    if (ev === 'nav') { // YouTube moved to another video
+      if (this.game.running) this.game.stop();
+      this.cues = []; this.trans = []; this.secondary = null; this.cands.clear(); this.title = ''; this.shown = -1; this.autoLoaded = false;
+      this.renderCaption(true); this.renderCenter(); this.syncNativeCaptions();
+      setTimeout(() => this.afterMount(), 1500);
+    }
+    if (ev === 'yt-none' && !this.cues.length) { this.toast('This YouTube video has no subtitles. Load an .srt in Setup.', 8000); this.openPanel('setup'); }
+  }
+  addCandidate(c) {
+    if (this.cands.has(c.id) && this.cands.get(c.id).text === c.text) return;
+    let cues = [];
+    try { cues = parseSubtitles(c.text).cues; } catch {}
+    if (cues.length < 2) return;
+    const lang = (c.lang || '').slice(0, 2);
+    const en = lang === 'en' || (!lang && (/english|\beng?\b/i.test(c.label || '') || englishScore(cues) > 0.14));
+    const cand = { ...c, cues, isEnglish: en, lang2: lang || (en ? 'en' : '') };
+    this.cands.set(c.id, cand);
+    // English → main subtitles (first one wins; an updated/merged version of the loaded track replaces it).
+    if (en && (!this.cues.length || (this.autoLoaded && this.currentCand === c.id))) {
+      this.useCandidate(cand, true);
+    } else if (!en && cand.lang2 && cand.lang2 === native() && this.cues.length) {
+      this.useAsTranslation(cand);
+    }
+    if (this.tab === 'setup' && !this.$('.side').hidden) this.renderSetup();
+  }
+  useCandidate(cand, auto) {
+    const lang = LANGS[cand.lang2] || (cand.isEnglish ? 'English' : 'Subtitles');
+    const page = (document.title || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+    const name = (page ? page + ' — ' : '') + (cand.label || lang);
+    this.currentCand = cand.id; this.autoLoaded = !!auto;
+    this.loadSubs(cand.text, name, { auto });
+    // A track in the learner's language becomes the translation line.
+    for (const o of this.cands.values()) if (o !== cand && o.lang2 && o.lang2 === native()) { this.useAsTranslation(o); break; }
+  }
+  useAsTranslation(cand) {
+    if (!this.cues.length) return;
+    this.secondary = alignSecondary(this.cues, cand.cues);
+    this.trans = this.secondary.slice();
+    this.renderCaption(true);
+  }
+  syncNativeCaptions() {
+    const hide = this.visible && this.cues.length > 0 && (IS_YT || IS_NETFLIX);
+    if (hide && !this.nativeCaptionsStyle.isConnected) document.documentElement.appendChild(this.nativeCaptionsStyle);
+    if (!hide && this.nativeCaptionsStyle.isConnected) this.nativeCaptionsStyle.remove();
   }
 
   attach() {
@@ -107,6 +180,7 @@ class Overlay {
     this.visible = !this.visible;
     this.host.style.display = this.visible ? '' : 'none';
     if (!this.visible && this.game.running) this.game.stop();
+    this.syncNativeCaptions();
   }
 
   // ---------------------------------------------------------------- events
@@ -196,10 +270,12 @@ class Overlay {
   }
 
   // ---------------------------------------------------------------- subtitles
-  loadSubs(text, name) {
+  loadSubs(text, name, { auto = false } = {}) {
     const { cues } = parseSubtitles(text);
     if (!cues.length) { this.toast('No subtitle lines found in that file.'); return; }
-    this.cues = cues; this.trans = new Array(cues.length).fill(''); this.title = name || 'Subtitles'; this.shown = -1;
+    if (!auto) { this.currentCand = null; this.autoLoaded = false; }
+    clearTimeout(this._noSubs);
+    this.cues = cues; this.trans = new Array(cues.length).fill(''); this.secondary = null; this.title = name || 'Subtitles'; this.shown = -1;
     Object.assign(this.eng, { target: null, loopCount: 0, pausedAtEnd: null });
     const recent = (cfg.recent || []).filter(r => r.name !== this.title);
     if (text.length < 300000) recent.unshift({ name: this.title, text, offset: 0, at: Date.now() });
@@ -207,7 +283,8 @@ class Overlay {
     const prev = (cfg.recent.find(r => r.name === this.title) || {});
     this.offset = prev.offset || 0;
     saveCfg();
-    this.toast(`${cues.length} lines loaded. If they are early/late, use Sync in Setup.`);
+    this.toast(auto ? `✅ Subtitles found automatically: ${this.title} (${cues.length} lines)` : `${cues.length} lines loaded. If they are early/late, use Sync in Setup.`);
+    this.syncNativeCaptions();
     this.$('.side').hidden = true; // keep the movie visible; ☰ opens the list
     this.renderCenter();
     this.renderCaption(true);
@@ -238,7 +315,8 @@ class Overlay {
     const e = this.eng;
     e.target = i; e.pausedAtEnd = null;
     const vt = Math.max(0, c.start + this.offset - 0.05);
-    this.video.currentTime = vt;
+    if (IS_NETFLIX) window.postMessage({ __ep: 'seek', t: vt }, '*'); // Netflix breaks if currentTime is set directly
+    else this.video.currentTime = vt;
     e.expect = e.lastT = vt - this.offset; e.guardUntil = performance.now() + 1500;
     if (play) this.video.play().catch(() => {});
     this.showLine(i);
@@ -322,6 +400,7 @@ class Overlay {
 
   // ---------------------------------------------------------------- caption
   async ensureTrans(i) {
+    if (this.secondary && this.secondary[i]) return (this.trans[i] = this.secondary[i]);
     if (!this.cues[i] || this.trans[i] || native() === 'en') return this.trans[i] || '';
     try { this.trans[i] = await translate(this.cues[i].text, 'en', native()); } catch {}
     return this.trans[i];
@@ -483,7 +562,11 @@ class Overlay {
     const tracks = this.readPlayerTracks();
     const langOpts = sel => Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
     b.innerHTML = `
-      <h5>1 · English subtitles</h5>
+      <h5>1 · Subtitles found on this page</h5>
+      ${this.cands.size ? [...this.cands.values()].map(c => `<div class="cand${c.id === this.currentCand ? ' on' : ''}"><div><b>${esc(c.label || LANGS[c.lang2] || 'Subtitles')}</b> <span class="mut small">${esc(c.source || '')}</span> <span class="mut small">${esc(c.lang2 || '?')} · ${c.cues.length} lines${c.isEnglish ? ' · English' : ''}</span></div>
+        <div class="row"><button class="btn${c.isEnglish ? ' pri' : ''}" data-cand="${esc(c.id)}">Use</button>${this.cues.length ? `<button class="btn" data-candtr="${esc(c.id)}">Use as translation</button>` : ''}</div></div>`).join('')
+        : `<p class="mut small">${IS_YT ? 'Asking YouTube for its captions…' : 'None yet. Turn ON English subtitles (CC) in the video player once and they appear here automatically.'}</p>`}
+      <h5>…or your own file</h5>
       <label class="drop"><input type="file" accept=".srt,.vtt,.ass,.ssa,.sbv,.txt,.json" hidden><b>Choose .srt / .vtt file</b><span class="mut">or drop it here</span></label>
       ${tracks.length ? `<div class="row">${tracks.map((tk, k) => `<button class="btn" data-track="${k}">Use player track: ${esc(tk.label)}</button>`).join('')}</div>` : ''}
       <details><summary class="mut">…or paste the subtitle text</summary><textarea rows="4" class="paste"></textarea><button class="btn" data-x="paste">Load pasted text</button></details>
@@ -496,6 +579,8 @@ class Overlay {
       <div class="row">${Object.entries(cfg.profiles).map(([id, p]) => `<button class="btn${cfg.active === id ? ' pri' : ''}" data-prof="${id}">${esc(p.name)}</button>`).join('')}</div>
       <div class="row"><input class="pname" value="${esc(prof().name)}" placeholder="Name"><select class="pnative">${langOpts(native())}</select></div>
       <p class="mut small">Native language is only used for meanings and translations. Shortcuts: A previous · S repeat · D next · Q pause-each-line · Alt+E show/hide.</p>`;
+    b.querySelectorAll('[data-cand]').forEach(btn => btn.onclick = () => { const c = this.cands.get(btn.dataset.cand); if (c) this.useCandidate(c, false); });
+    b.querySelectorAll('[data-candtr]').forEach(btn => btn.onclick = () => { const c = this.cands.get(btn.dataset.candtr); if (c) { this.useAsTranslation(c); this.toast('Translation line: ' + (c.label || c.lang2)); } });
     const file = b.querySelector('input[type=file]');
     file.onchange = async () => { const f = file.files[0]; if (f) this.loadSubs(await f.text(), f.name.replace(/\.[^.]+$/, '')); };
     const drop = b.querySelector('.drop');
@@ -516,7 +601,7 @@ class Overlay {
     };
     b.querySelectorAll('[data-prof]').forEach(btn => btn.onclick = () => { cfg.active = btn.dataset.prof; saveCfg(); setContentLang(native()); this.trans = new Array(this.cues.length).fill(''); this.renderSetup(); this.renderCaption(true); });
     b.querySelector('.pname').onchange = e => { prof().name = e.target.value.trim() || prof().name; saveCfg(); this.renderSetup(); };
-    b.querySelector('.pnative').onchange = e => { prof().native = e.target.value; saveCfg(); setContentLang(native()); this.trans = new Array(this.cues.length).fill(''); this.renderCaption(true); };
+    b.querySelector('.pnative').onchange = e => { prof().native = e.target.value; saveCfg(); setContentLang(native()); this.trans = new Array(this.cues.length).fill(''); this.secondary = null; this.renderCaption(true); if (IS_YT && this.cues.length) window.postMessage({ __ep: 'yt-load', lang: 'en', native: native() }, '*'); };
   }
 
   // ---------------------------------------------------------------- Listen & type game
@@ -640,7 +725,7 @@ class Overlay {
 
   // ---------------------------------------------------------------- bits
   float(txt, cls) { const el = document.createElement('div'); el.className = 'fl ' + cls; el.textContent = txt; this.$('.floats').appendChild(el); setTimeout(() => el.remove(), 1400); }
-  toast(msg) { const el = this.$('.toast'); el.textContent = msg; el.hidden = false; clearTimeout(this._toast); this._toast = setTimeout(() => { el.hidden = true; }, 3500); }
+  toast(msg, ms = 3500) { const el = this.$('.toast'); el.textContent = msg; el.hidden = false; clearTimeout(this._toast); this._toast = setTimeout(() => { el.hidden = true; }, ms); }
 }
 
 function toTs(s) {

@@ -153,7 +153,7 @@ S.en = {
   videoUrl: 'YouTube, direct .mp4/.webm/.m3u8 link or Azure Blob',
   urlHint: 'Supported: <b>YouTube</b> and direct links to video files (for example your Azure Blob Storage). Sites like Bilibili, Netflix or Disney+ do not let another website control their player: use a local file and its .srt subtitles instead.',
   ttsHint: 'No video: a synthetic voice reads each line. Useful for transcripts, songs or texts.',
-  subsFile: 'Subtitles in the language you are learning (.srt, .vtt, .ass, .txt)', pasteSubs: '…or paste the subtitle text',
+  subsFile: 'English subtitles (.srt, .vtt…) — not needed for YouTube links: they are fetched automatically', pasteSubs: '…or paste the subtitle text',
   subs2File: 'Subtitles in your language (optional; otherwise they are translated automatically)', title: 'Title', cancel: 'Cancel', start: 'Start',
   profiles: 'Profiles (2 people)', aiTitle: 'AI assistant (optional)',
   aiHint: 'With a Claude API key you get in-depth grammar explanations, answers to your questions and tailored examples. Without a key the app still works with its built-in grammar engine.',
@@ -199,6 +199,8 @@ S.en = {
   exitGame: 'Exit', quit: 'End game', gameKeys: 'Enter = replay line · ↓ = hint · Esc = skip',
   needVideoGame: 'Load a video (or the demo) with subtitles first.', gameOverLives: '💔 Out of lives', gameDone: '🎉 Clip completed!',
   showTrans: 'Show translation', savedN: 'words saved',
+  ytFetching: '🔎 Getting the YouTube subtitles automatically…',
+  ytFail: 'Could not get this video’s subtitles automatically (YouTube blocked it or it has none). Use the EnglishPro extension on youtube.com — it grabs them by itself — or add an .srt file.',
 };
 
 // The interface is always English. The learner's native language is only used for

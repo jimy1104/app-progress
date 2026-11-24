@@ -2,22 +2,72 @@
   "manifest_version": 3,
   "name": "EnglishPro — Shadowing & Listen-and-type",
   "short_name": "EnglishPro",
-  "version": "1.0.0",
-  "description": "Shadowing and a timed listen-and-type game on top of any video: movies, series, YouTube. Hover words for meanings, grammar per line.",
-  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
-  "action": { "default_title": "EnglishPro (Alt+E)", "default_icon": { "16": "icons/16.png", "48": "icons/48.png" } },
-  "background": { "service_worker": "background.js" },
-  "permissions": ["storage"],
-  "host_permissions": ["https://translate.googleapis.com/*", "https://api.mymemory.translated.net/*", "https://api.dictionaryapi.dev/*"],
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content.js"],
-    "all_frames": true,
-    "match_about_blank": true,
-    "run_at": "document_idle"
-  }],
-  "web_accessible_resources": [{ "resources": ["lib/*"], "matches": ["<all_urls>"] }],
+  "version": "1.1.0",
+  "description": "Language-Reactor-style shadowing and a timed listen-and-type game on any video. Grabs the player's subtitles automatically (YouTube, Netflix, most players).",
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "EnglishPro (Alt+E)",
+    "default_icon": {
+      "16": "icons/16.png",
+      "48": "icons/48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://translate.googleapis.com/*",
+    "https://api.mymemory.translated.net/*",
+    "https://api.dictionaryapi.dev/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "inject.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "commands": {
-    "_execute_action": { "suggested_key": { "default": "Alt+E" }, "description": "Open / close EnglishPro on this video" }
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+E"
+      },
+      "description": "Open / close EnglishPro on this video"
+    }
   }
 }

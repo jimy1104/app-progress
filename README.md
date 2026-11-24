@@ -80,6 +80,8 @@ Instalar:
 2. Abre `chrome://extensions` (o `brave://extensions`, `edge://extensions`) y activa **Modo desarrollador**.
 3. **Cargar descomprimida** → elige la carpeta `extension`.
 
-Usar: abre la película, dale a play, pulsa el icono **EP** (o `Alt+E`), carga el `.srt` en inglés en *Setup* y, si los subtítulos van desfasados, pausa en una frase, elígela y pulsa **It starts now**.
+Usar: abre la película, dale a play y pulsa el icono **EP** (o `Alt+E`). **Los subtítulos se cargan solos**: la extensión guarda una copia de los que descarga el propio reproductor (YouTube, Netflix y la mayoría de reproductores con subtítulos `.vtt/.srt/TTML`). Si hay una pista en tu idioma, se usa como traducción (subtítulos duales). Si no aparece nada, activa una vez los subtítulos en inglés (CC) del reproductor. También puedes cargar un `.srt` en *Setup*. Si van desfasados: pausa en una frase, elígela y pulsa **It starts now**.
+
+En la web, los enlaces de YouTube no necesitan archivo: el servidor (`server.js`, ruta `/api/yt-subs`) intenta descargar los subtítulos. YouTube a veces bloquea a los servidores en la nube; en ese caso usa la extensión en youtube.com.
 
 Los motores (`subtitles`, `grammar`, `game`, `translate`, `dictionary`, `i18n`) se comparten con la web: tras cambiarlos ejecuta `node tools/build-extension.mjs` y vuelve a crear el zip.

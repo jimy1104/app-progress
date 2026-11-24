@@ -106,6 +106,54 @@ function parseJSON3(text) {
   return out;
 }
 
+/** TTML / DFXP (Netflix, Disney+, Prime…). Uses DOMParser (browser). */
+function parseTTML(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const root = doc.documentElement;
+  const attr = (el, name) => el.getAttribute(name) || el.getAttribute('ttp:' + name) || el.getAttributeNS('http://www.w3.org/ns/ttml#parameter', name);
+  const tick = Number(attr(root, 'tickRate')) || 10000000;
+  const fps = Number(attr(root, 'frameRate')) || 30;
+  const time = v => {
+    if (!v) return NaN; v = v.trim();
+    let m;
+    if ((m = v.match(/^([\d.]+)(h|ms|m|s|f|t)$/))) {
+      const n = parseFloat(m[1]);
+      return { h: n * 3600, m: n * 60, s: n, ms: n / 1000, f: n / fps, t: n / tick }[m[2]];
+    }
+    if ((m = v.match(/^(\d+):(\d+):(\d+)(?:\.(\d+))?(?::(\d+))?$/))) return +m[1] * 3600 + +m[2] * 60 + +m[3] + (m[4] ? Number('0.' + m[4]) : 0) + (m[5] ? +m[5] / fps : 0);
+    return NaN;
+  };
+  const textOf = node => {
+    let out = '';
+    for (const c of node.childNodes) {
+      if (c.nodeType === 3) out += c.nodeValue;
+      else if (c.localName === 'br') out += ' ';
+      else out += textOf(c);
+    }
+    return out;
+  };
+  const out = [];
+  for (const p of doc.getElementsByTagName('*')) {
+    if (p.localName !== 'p') continue;
+    let start = time(p.getAttribute('begin')); let end = time(p.getAttribute('end'));
+    if (!isFinite(end) && p.getAttribute('dur')) end = start + time(p.getAttribute('dur'));
+    const t = cleanText(textOf(p));
+    if (t && isFinite(start)) out.push({ start, end: isFinite(end) ? end : start + 2, text: t });
+  }
+  return out;
+}
+
+/** YouTube XML formats: <transcript><text start dur> and srv3 <timedtext><p t d>. */
+function parseYTXML(text) {
+  const out = [];
+  const dec = s => cleanText(s.replace(/<[^>]+>/g, '').replace(/&amp;#39;/g, "'").replace(/&amp;quot;/g, '"').replace(/&amp;/g, '&'));
+  let m; const re1 = /<text[^>]*\bstart="([\d.]+)"[^>]*?(?:\bdur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/g;
+  while ((m = re1.exec(text))) { const t = dec(m[3]); if (t) out.push({ start: +m[1], end: +m[1] + (+m[2] || 2), text: t }); }
+  const re2 = /<p[^>]*\bt="(\d+)"[^>]*?(?:\bd="(\d+)")?[^>]*>([\s\S]*?)<\/p>/g;
+  while ((m = re2.exec(text))) { const t = dec(m[3]); if (t) out.push({ start: +m[1] / 1000, end: (+m[1] + (+m[2] || 2000)) / 1000, text: t }); }
+  return out;
+}
+
 /** Plain text without timings: one sentence per line, with estimated durations. */
 function parsePlain(text) {
   const raw = text.replace(/\r/g, '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -130,6 +178,8 @@ export function parseSubtitles(text) {
   let cues; let untimed = false;
   try {
     if (/^\s*\{/.test(head) && /"events"/.test(head)) cues = parseJSON3(text);
+    else if (/<tt[\s>]/.test(head)) cues = parseTTML(text);
+    else if (/<transcript[\s>]|<timedtext[\s>]/.test(head)) cues = parseYTXML(text);
     else if (/\[Script Info\]|\[Events\]|^Dialogue:/m.test(head)) cues = parseASS(text);
     else if (text.includes('-->')) cues = dedupeRolling(parseCueBlocks(text));
     else if (/^\d+:\d{2}:\d{2}\.\d{3},\d+:\d{2}:\d{2}\.\d{3}$/m.test(head)) cues = parseSBV(text);
