@@ -1,0 +1,16 @@
+{
+  "globalHeaders": {
+    "Permissions-Policy": "microphone=(self), autoplay=(self), fullscreen=(self)",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  },
+  "mimeTypes": {
+    ".srt": "text/plain; charset=utf-8",
+    ".vtt": "text/vtt; charset=utf-8",
+    ".ass": "text/plain; charset=utf-8"
+  },
+  "routes": [
+    { "route": "/js/*", "headers": { "Cache-Control": "public, max-age=3600" } },
+    { "route": "/css/*", "headers": { "Cache-Control": "public, max-age=3600" } }
+  ]
+}

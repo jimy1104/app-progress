@@ -1,0 +1,39 @@
+1
+00:00:00,500 --> 00:00:02,600
+Hi! Do you have a minute?
+
+2
+00:00:03,000 --> 00:00:05,800
+I've been looking for you all morning.
+
+3
+00:00:06,200 --> 00:00:09,000
+I'm going to tell you something important.
+
+4
+00:00:09,400 --> 00:00:12,600
+If you had told me earlier, I would have helped you.
+
+5
+00:00:13,000 --> 00:00:15,600
+Don't worry, we'll figure it out together.
+
+6
+00:00:16,000 --> 00:00:19,000
+The window was broken by someone who lives here.
+
+7
+00:00:19,400 --> 00:00:22,400
+You should have called the police, shouldn't you?
+
+8
+00:00:22,800 --> 00:00:25,800
+I wanna know what you're gonna do about it.
+
+9
+00:00:26,200 --> 00:00:29,200
+Let's calm down and think about it.
+
+10
+00:00:29,600 --> 00:00:32,600
+I used to live here, but I'm not used to this noise.

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShadowLab</title>
+  <meta name="description" content="Shadowing, subtítulos duales, diccionario al pasar el ratón y análisis gramatical para practicar idiomas con películas y vídeos.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236d5dfc'/%3E%3Cpath d='M18 40c6-10 10-16 14-16s8 6 14 16' stroke='white' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='20' r='5' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◐</span>
+      <span class="brand-name">ShadowLab</span>
+    </div>
+    <div class="top-actions">
+      <button class="btn primary" id="btnLoad" data-i18n="load">Cargar vídeo</button>
+      <div class="profiles" id="profileSwitch" role="tablist" aria-label="Perfil"></div>
+      <button class="icon-btn" id="btnSettings" data-i18n-title="settings" title="Ajustes">⚙</button>
+      <button class="icon-btn" id="btnHelp" data-i18n-title="help" title="Ayuda">?</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-col">
+      <div class="stage" id="stage">
+        <div class="player-host" id="playerHost">
+          <div class="empty-state" id="emptyState">
+            <h1 data-i18n="emptyTitle">Practica shadowing con cualquier película</h1>
+            <p data-i18n="emptyText">Carga un vídeo (archivo, YouTube o enlace directo) y sus subtítulos. Luego escucha, repite, grábate, traduce y analiza la gramática de cada frase.</p>
+            <div class="empty-actions">
+              <button class="btn primary" id="btnLoad2" data-i18n="load">Cargar vídeo</button>
+              <button class="btn" id="btnDemo" data-i18n="tryDemo">Probar demo (voz sintética)</button>
+            </div>
+          </div>
+        </div>
+        <div class="caption" id="caption">
+          <div class="caption-meta">
+            <span id="lineCounter" class="muted">—</span>
+            <span class="spacer"></span>
+            <button class="mini" id="btnSpeakLine" data-i18n-title="speakLine" title="Escuchar con voz sintética (lenta)">🔈</button>
+            <button class="mini" id="btnSaveLine" data-i18n-title="saveSentence" title="Guardar frase">☆</button>
+            <button class="mini" id="btnAiLine" data-i18n-title="aiExplain" title="Explicar con IA">✦</button>
+            <button class="mini" id="btnFullscreen" data-i18n-title="fullscreen" title="Pantalla completa">⛶</button>
+          </div>
+          <div class="line-text" id="lineText" dir="auto"></div>
+          <div class="line-trans" id="lineTrans" dir="auto"></div>
+        </div>
+      </div>
+
+      <div class="controls" id="controls">
+        <div class="ctrl-group">
+          <button class="ctrl" id="btnPrev" data-i18n-title="prevLine" title="Frase anterior (A)">⏮</button>
+          <button class="ctrl" id="btnRepeat" data-i18n-title="repeatLine" title="Repetir frase (S)">↺</button>
+          <button class="ctrl play" id="btnPlay" data-i18n-title="playPause" title="Reproducir / pausa (Espacio)">▶</button>
+          <button class="ctrl" id="btnNext" data-i18n-title="nextLine" title="Frase siguiente (D)">⏭</button>
+        </div>
+        <div class="ctrl-group">
+          <label class="sr-only" for="modeSelect" data-i18n="mode">Modo</label>
+          <select id="modeSelect" class="select"></select>
+          <select id="rateSelect" class="select" aria-label="Velocidad">
+            <option value="0.5">0.5×</option><option value="0.6">0.6×</option><option value="0.75">0.75×</option>
+            <option value="0.85">0.85×</option><option value="1" selected>1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <button class="ctrl rec" id="btnRecord" data-i18n-title="record" title="Grabarme (R)">●</button>
+          <button class="ctrl" id="btnPlayMine" data-i18n-title="playMine" title="Escuchar mi grabación (P)" disabled>▷</button>
+          <button class="ctrl" id="btnCompare" data-i18n-title="compare" title="Original y después mi voz (C)" disabled>⇄</button>
+        </div>
+      </div>
+
+      <div class="toggles" id="toggles"></div>
+
+      <div class="practice">
+        <details class="card" id="recCard" open>
+          <summary data-i18n="myRecording">Mi grabación</summary>
+          <div class="rec-body">
+            <canvas id="wave" height="70" aria-label="Forma de onda"></canvas>
+            <div class="rec-stats" id="recStats"></div>
+            <div class="score" id="scoreBox"></div>
+          </div>
+        </details>
+        <details class="card" id="transCard">
+          <summary data-i18n="translateYourself">Tradúcelo tú</summary>
+          <div class="trans-body">
+            <p class="muted small" data-i18n="translateHint">Escribe en tu idioma lo que dice la frase y compáralo.</p>
+            <textarea id="transInput" rows="2" dir="auto"></textarea>
+            <div class="row">
+              <button class="btn" id="btnCheckTrans" data-i18n="check">Comprobar</button>
+              <span class="spacer"></span>
+              <span id="transScore" class="pill"></span>
+            </div>
+            <div id="transResult" class="trans-result" dir="auto"></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <aside class="side" id="side">
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="subs" data-i18n="tabSubs">Subtítulos</button>
+        <button class="tab" data-tab="grammar" data-i18n="tabGrammar">Gramática</button>
+        <button class="tab" data-tab="saved" data-i18n="tabSaved">Guardados</button>
+        <button class="tab" data-tab="routine" data-i18n="tabRoutine">Rutina</button>
+        <button class="tab" data-tab="progress" data-i18n="tabProgress">Progreso</button>
+      </nav>
+
+      <section class="panel active" data-panel="subs">
+        <div class="panel-tools">
+          <input type="search" id="subSearch" class="input" data-i18n-ph="searchSubs" placeholder="Buscar en subtítulos">
+          <button class="btn small" id="btnTranslateAll" data-i18n="translateAll">Traducir todo</button>
+        </div>
+        <div class="sub-filter" id="subFilter" hidden></div>
+        <ol class="sub-list" id="subList"></ol>
+      </section>
+
+      <section class="panel" data-panel="grammar">
+        <div id="grammarPanel" class="grammar"></div>
+      </section>
+
+      <section class="panel" data-panel="saved">
+        <div class="panel-tools">
+          <div class="seg" id="savedSeg">
+            <button class="seg-btn active" data-v="words" data-i18n="words">Palabras</button>
+            <button class="seg-btn" data-v="sentences" data-i18n="sentences">Frases</button>
+            <button class="seg-btn" data-v="review" data-i18n="review">Repasar</button>
+          </div>
+          <button class="btn small" id="btnExportCsv" data-i18n="exportAnki">Exportar (Anki)</button>
+        </div>
+        <div id="savedPanel"></div>
+      </section>
+
+      <section class="panel" data-panel="routine">
+        <div id="routinePanel"></div>
+      </section>
+
+      <section class="panel" data-panel="progress">
+        <div id="progressPanel"></div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Word popup -->
+  <div class="popup" id="popup" role="dialog" aria-live="polite" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- Load dialog -->
+  <dialog id="dlgLoad" class="dialog">
+    <form method="dialog" class="dlg-inner" id="loadForm">
+      <header class="dlg-head">
+        <h2 data-i18n="loadTitle">Cargar vídeo y subtítulos</h2>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="seg" id="srcSeg">
+        <button type="button" class="seg-btn active" data-v="file" data-i18n="srcFile">Archivo del ordenador</button>
+        <button type="button" class="seg-btn" data-v="url" data-i18n="srcUrl">Enlace</button>
+        <button type="button" class="seg-btn" data-v="tts" data-i18n="srcTts">Solo texto (voz)</button>
+      </div>
+
+      <div class="src-pane" data-src="file">
+        <label class="field">
+          <span data-i18n="videoFile">Vídeo o audio (mp4, webm, mkv, mp3…)</span>
+          <input type="file" id="inVideo" accept="video/*,audio/*,.mkv,.mov">
+        </label>
+        <p class="hint" data-i18n="fileHint">El archivo no se sube a ningún servidor: se reproduce en tu navegador. Así puedes usar películas completas sin límite de tamaño.</p>
+      </div>
+      <div class="src-pane" data-src="url" hidden>
+        <label class="field">
+          <span data-i18n="videoUrl">YouTube, enlace directo .mp4/.webm/.m3u8 o Azure Blob</span>
+          <input type="url" id="inUrl" class="input" placeholder="https://www.youtube.com/watch?v=…">
+        </label>
+        <div class="hint" id="urlHint" data-i18n-html="urlHint"></div>
+      </div>
+      <div class="src-pane" data-src="tts" hidden>
+        <p class="hint" data-i18n="ttsHint">Sin vídeo: una voz sintética lee cada frase. Útil para practicar con transcripciones, canciones o textos.</p>
+      </div>
+
+      <label class="field">
+        <span data-i18n="subsFile">Subtítulos del idioma que aprendes (.srt, .vtt, .ass, .txt)</span>
+        <input type="file" id="inSubs" accept=".srt,.vtt,.ass,.ssa,.txt,.json,.sbv">
+      </label>
+      <details class="field">
+        <summary data-i18n="pasteSubs">…o pega el texto de los subtítulos</summary>
+        <textarea id="inSubsText" rows="5" class="input" placeholder="1&#10;00:00:01,000 --> 00:00:03,000&#10;Is it my fault that Joséphine disappeared?"></textarea>
+      </details>
+      <label class="field">
+        <span data-i18n="subs2File">Subtítulos en tu idioma (opcional; si no, se traducen automáticamente)</span>
+        <input type="file" id="inSubs2" accept=".srt,.vtt,.ass,.ssa,.txt,.json,.sbv">
+      </label>
+      <label class="field">
+        <span data-i18n="title">Título</span>
+        <input type="text" id="inTitle" class="input">
+      </label>
+      <div class="dlg-foot">
+        <span class="spacer"></span>
+        <button class="btn" value="cancel" data-i18n="cancel">Cancelar</button>
+        <button class="btn primary" id="btnDoLoad" value="default" data-i18n="start">Empezar</button>
+      </div>
+
+      <section class="library" id="library"></section>
+    </form>
+  </dialog>
+
+  <!-- Settings dialog -->
+  <dialog id="dlgSettings" class="dialog">
+    <form method="dialog" class="dlg-inner">
+      <header class="dlg-head">
+        <h2 data-i18n="settings">Ajustes</h2>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+      <h3 data-i18n="profiles">Perfiles (2 personas)</h3>
+      <div id="profileEditor" class="profile-editor"></div>
+
+      <h3 data-i18n="aiTitle">Asistente IA (opcional)</h3>
+      <p class="hint" data-i18n="aiHint">Con una clave de la API de Claude obtienes explicaciones gramaticales profundas, respuestas a preguntas y ejemplos a medida. Sin clave, la app funciona igual con su motor gramatical integrado.</p>
+      <label class="field"><span data-i18n="apiKey">Clave API de Anthropic</span>
+        <input type="password" id="aiKey" class="input" autocomplete="off" placeholder="sk-ant-…"></label>
+      <label class="field"><span data-i18n="aiModel">Modelo</span>
+        <select id="aiModel" class="select">
+          <option value="claude-opus-5-5">Claude Opus 5.5</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5</option>
+        </select></label>
+      <p class="hint warn" data-i18n="aiWarn">La clave se guarda solo en este navegador. No la uses en ordenadores compartidos.</p>
+
+      <h3 data-i18n="data">Datos</h3>
+      <div class="row wrap">
+        <button type="button" class="btn" id="btnExportData" data-i18n="exportData">Exportar copia (JSON)</button>
+        <label class="btn file-btn"><span data-i18n="importData">Importar copia</span><input type="file" id="inImport" accept=".json" hidden></label>
+        <button type="button" class="btn danger" id="btnReset" data-i18n="resetData">Borrar todo</button>
+      </div>
+      <div class="dlg-foot">
+        <span class="spacer"></span>
+        <button class="btn primary" value="default" id="btnSaveSettings" data-i18n="save">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Help dialog -->
+  <dialog id="dlgHelp" class="dialog">
+    <form method="dialog" class="dlg-inner">
+      <header class="dlg-head">
+        <h2 data-i18n="help">Ayuda</h2>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+      <div id="helpBody" dir="auto"></div>
+    </form>
+  </dialog>
+
+  <!-- AI dialog -->
+  <dialog id="dlgAi" class="dialog wide">
+    <form method="dialog" class="dlg-inner">
+      <header class="dlg-head">
+        <h2 data-i18n="aiExplain">Explicar con IA</h2>
+        <button class="icon-btn" value="cancel" aria-label="Cerrar">✕</button>
+      </header>
+      <div id="aiBody" dir="auto"></div>
+      <div class="row ai-ask">
+        <input type="text" id="aiQuestion" class="input" data-i18n-ph="aiAskPh" placeholder="Pregunta lo que quieras sobre esta frase…" dir="auto">
+        <button type="button" class="btn primary" id="btnAiAsk" data-i18n="ask">Preguntar</button>
+      </div>
+      <div id="aiAnswer" class="ai-answer" dir="auto"></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
