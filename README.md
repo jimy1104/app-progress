@@ -70,3 +70,16 @@ El workflow `.github/workflows/azure-webapp.yml` publica la web en cada push a `
 3. GitHub → **Actions → Deploy to Azure Web App → Run workflow**.
 
 En Linux con Node, App Service ejecuta `npm start` (`server.js`, sin dependencias). En Windows, IIS sirve los archivos con `web.config`.
+
+## Extensión del navegador (Chrome / Brave / Edge)
+
+Funciona encima del vídeo de **cualquier web** (incluidos los reproductores dentro de iframes): modo **Shadowing** (pausa en cada frase, repetir, anterior/siguiente, traducción) y **Listen & type** (el juego de completar con niveles, reloj, vidas y combos), con significados al pasar el ratón, gramática de cada frase y palabras guardadas.
+
+Instalar:
+1. Descarga `englishpro-extension.zip` (botón *Get the browser extension* en la web) y descomprímelo.
+2. Abre `chrome://extensions` (o `brave://extensions`, `edge://extensions`) y activa **Modo desarrollador**.
+3. **Cargar descomprimida** → elige la carpeta `extension`.
+
+Usar: abre la película, dale a play, pulsa el icono **EP** (o `Alt+E`), carga el `.srt` en inglés en *Setup* y, si los subtítulos van desfasados, pausa en una frase, elígela y pulsa **It starts now**.
+
+Los motores (`subtitles`, `grammar`, `game`, `translate`, `dictionary`, `i18n`) se comparten con la web: tras cambiarlos ejecuta `node tools/build-extension.mjs` y vuelve a crear el zip.

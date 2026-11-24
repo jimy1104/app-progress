@@ -34,7 +34,7 @@ jobs:
       - name: Package site
         run: |
           mkdir -p dist
-          cp -r index.html css js samples staticwebapp.config.json server.js package.json web.config dist/
+          cp -r index.html css js samples staticwebapp.config.json server.js package.json web.config englishpro-extension.zip dist/
 
       - name: Deploy
         uses: azure/webapps-deploy@v3
